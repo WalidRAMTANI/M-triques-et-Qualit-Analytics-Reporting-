@@ -13,7 +13,7 @@ import json
 from contextlib import contextmanager
 from typing import Optional, List, Dict, Any
 from pathlib import Path
-
+from model import MetriqueQualiteAAV
 # Configuration
 DATABASE_PATH = Path("platonAAV.db")
 
@@ -275,6 +275,7 @@ def from_json(json_str: Optional[str]) -> Any:
 # ============================================
 
 class BaseRepository:
+
     """
     Classe de base pour tous les repositories.
     Fournit les opérations CRUD standardisées.
@@ -326,3 +327,68 @@ class BaseRepository:
             cursor = conn.cursor()
             cursor.execute(f"SELECT COUNT(*) FROM {self.table_name}")
             return cursor.fetchone()[0]
+
+# Repository spécifique
+class MetriqueQualiteAAVRepository(BaseRepository):
+    def __init__(self):
+        super().__init__("metrique_qualite_aav", "id_metrique")
+
+    def create(self, data: MetriqueQualiteAAV) -> int:
+        """Crée un AAV et retourne son ID."""
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+            INSERT INTO metrique_qualite_aav (
+                id_aav,
+                score_covering_ressources,
+                taux_succes_moyen,
+                est_utilisable,
+                nb_tentatives_total,
+                nb_apprenants_distincts,
+                ecart_type_scores,
+                date_calcul
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        """, (
+            data.id_aav,
+            data.score_covering_ressources,
+            data.taux_succes_moyen,
+            data.est_utilisable,
+            data.nb_tentatives_total,
+            data.nb_apprenants_distincts,
+            data.ecart_type_scores,
+            data.date_calcul.isoformat()
+        ))
+
+            return data
+
+class RapportRepository(BaseRepository):
+    def __init__(self):
+        super().__init__("rapport_periodique", "id_rapport")
+
+    def create(self, data: Rapport) -> Rapport:
+        """Crée un rapport et retourne son ID."""
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+            INSERT INTO rapport_periodique (
+                type_rapport,
+                id_cible,
+                periode_debut,
+                periode_fin,
+                format,
+                date_generation,
+                contenu,
+                format_fichier
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        """, (
+            data.type_rapport,
+            data.id_cible,
+            data.periode_debut.isoformat(),
+            data.periode_fin.isoformat(),
+            data.format,
+            data.date_generation.isoformat(),
+            data.contenu,
+            data.format_fichier
+        ))
+
+            return data

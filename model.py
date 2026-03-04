@@ -148,3 +148,43 @@ class SuccessResponse(BaseModel):
     message: str
     id: Optional[int] = None
     data: Optional[dict] = None
+
+# ------------------------------------------------------------------------#
+class MetriqueQualiteAAV(BaseModel):
+    """
+    Modèle pour les métriques de qualité des AAV.
+    Représente une ligne de la table metrique_qualite_aav.
+    """
+    id_aav: int
+    score_covering_ressources: float
+    taux_succes_moyen: float
+    est_utilisable: bool
+    nb_tentatives_total: int
+    nb_apprenants_distincts: int
+    ecart_type_scores: float
+    date_calcul: datetime
+
+class LearnerBase(BaseModel):
+    """Modèle de base pour un apprenant."""
+    id_apprenant: int
+    nom_utilisateur: str
+    email: str
+    date_inscription: datetime
+    derniere_connexion: Optional[datetime] = None
+    est_actif: bool = True
+    ontologie_reference_id: Optional[int] = None
+
+class Rapport(BaseModel):
+    """
+    Modèle pour les rapports.
+    Représente une ligne de la table rapport.
+    """
+    id_rapport: int
+    type_rapport: str
+    id_cible: int
+    periode_debut: datetime
+    periode_fin: datetime
+    format: str
+    date_generation: datetime
+    contenu: str  # JSON avec les données
+    format_fichier: str
