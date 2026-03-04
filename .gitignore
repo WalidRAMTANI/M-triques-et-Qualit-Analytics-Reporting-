@@ -1,0 +1,22 @@
+# Environnement virtuel Python
+lib/
+bin/
+include/
+pyvenv.cfg
+__pycache__/
+*.pyc
+*.pyo
+
+# Base de données SQLite
+*.db
+*.sqlite3
+
+# Fichiers temporaires
+.DS_Store
+*.egg-info/
+dist/
+build/
+.pytest_cache/
+
+# Fichier de test temporaire
+test_setup.py
