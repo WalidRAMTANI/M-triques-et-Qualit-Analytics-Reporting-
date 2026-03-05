@@ -4,6 +4,7 @@ from fastapi.exceptions import RequestValidationError
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from database import init_database, DatabaseError
+from routers import alerts, reports, comparaison
 
 app = FastAPI(
     title="Groupe 7 — Métriques Qualité AAV",
@@ -14,12 +15,19 @@ app = FastAPI(
 # ============================================
 # INITIALISATION DE LA BASE DE DONNÉES
 # ============================================
-
 @app.on_event("startup")
 def startup():
     """Crée toutes les tables au démarrage (communes + Groupe 7)."""
     init_database()
-
+# ============================================
+# ROUTERS
+# ============================================
+# include the alerts router
+app.include_router(alerts.router, prefix="/alerts", tags=["alerts"])
+# include the reports router
+app.include_router(reports.router, prefix="/reports", tags=["reports"])
+#include the comparaison router
+app.include_router(comparaison.router, prefix="/metrics/compare", tags=["comparisons"])
 # ============================================
 # GESTIONNAIRES D'EXCEPTIONS GLOBAUX
 # ============================================

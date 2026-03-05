@@ -20,3 +20,9 @@ build/
 
 # Fichier de test temporaire
 test_setup.py
+
+# Fichiers de test
+test_api.py
+test_csv.py
+test_post.py
+verify_services.py

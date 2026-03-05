@@ -19,7 +19,7 @@ print("=" * 50)
 
 try:
     from database import get_db_connection, init_database, DatabaseError, to_json, from_json, BaseRepository
-    print("✅ Import OK")
+    print(" Import OK")
 except ImportError as e:
     print(f"❌ Import échoué : {e}")
     sys.exit(1)

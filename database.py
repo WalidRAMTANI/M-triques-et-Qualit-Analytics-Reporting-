@@ -13,7 +13,7 @@ import json
 from contextlib import contextmanager
 from typing import Optional, List, Dict, Any
 from pathlib import Path
-from model import MetriqueQualiteAAV
+from model import MetriqueQualiteAAV, Rapport
 # Configuration
 DATABASE_PATH = Path("platonAAV.db")
 
@@ -189,6 +189,84 @@ def init_database():
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_tentative_date ON tentative(date_tentative)")
 
         # ============================================
+        # TABLES AUTRES GROUPES (Nécessaires pour le dump de test)
+        # ============================================
+
+        # Table: activite_pedagogique (Groupe 4)
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS activite_pedagogique (
+                id_activite INTEGER PRIMARY KEY,
+                nom TEXT,
+                description TEXT,
+                type_activite TEXT,
+                ids_exercices_inclus TEXT,
+                discipline TEXT,
+                niveau_difficulte TEXT,
+                duree_estimee_minutes INTEGER,
+                created_by INTEGER,
+                created_at TIMESTAMP
+            )
+        """)
+
+        # Table: session_apprenant (Groupe 4)
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS session_apprenant (
+                id_session INTEGER PRIMARY KEY,
+                id_activite INTEGER,
+                id_apprenant INTEGER,
+                date_debut TIMESTAMP,
+                date_fin TIMESTAMP,
+                statut TEXT,
+                progression_pourcentage REAL
+            )
+        """)
+
+        # Table: prompt_fabrication_aav (Groupe 8)
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS prompt_fabrication_aav (
+                id_prompt INTEGER PRIMARY KEY,
+                cible_aav_id INTEGER,
+                type_exercice_genere TEXT,
+                prompt_texte TEXT,
+                version_prompt INTEGER,
+                created_by INTEGER,
+                date_creation TIMESTAMP,
+                is_active BOOLEAN,
+                metadata TEXT
+            )
+        """)
+
+        # Table: exercice_instance (Groupe 8)
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS exercice_instance (
+                id_exercice INTEGER PRIMARY KEY,
+                id_prompt_source INTEGER,
+                titre TEXT,
+                id_aav_cible INTEGER,
+                type_evaluation TEXT,
+                contenu TEXT,
+                difficulte TEXT,
+                date_generation TIMESTAMP,
+                nb_utilisations INTEGER,
+                taux_succes_moyen REAL
+            )
+        """)
+
+        # Table: diagnostic_remediation (Groupe 6)
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS diagnostic_remediation (
+                id_diagnostic INTEGER PRIMARY KEY,
+                id_apprenant INTEGER,
+                id_aav_source INTEGER,
+                aav_racines_defaillants TEXT,
+                score_obtenu REAL,
+                date_diagnostic TIMESTAMP,
+                profondeur_analyse INTEGER,
+                recommandations TEXT
+            )
+        """)
+
+        # ============================================
         # TABLES GROUPE 7: Analytics & Reporting
         # (spécifiques à ce groupe — groupe7_metriques_qualite.md)
         # ============================================
@@ -240,6 +318,7 @@ def init_database():
                 date_generation TIMESTAMP,
                 periode_debut TIMESTAMP,
                 periode_fin TIMESTAMP,
+                format TEXT,
                 contenu TEXT,       -- JSON avec les données
                 format_fichier TEXT
             )
@@ -249,7 +328,7 @@ def init_database():
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_rapport_date ON rapport_periodique(date_generation)")
 
         conn.commit()
-        print("✅ Base de données initialisée avec succès")
+        print("Base de données initialisée avec succès")
 
 
 # ============================================
@@ -366,7 +445,7 @@ class RapportRepository(BaseRepository):
         super().__init__("rapport_periodique", "id_rapport")
 
     def create(self, data: Rapport) -> Rapport:
-        """Crée un rapport et retourne son ID."""
+        """Crate a report and return it."""
         with get_db_connection() as conn:
             cursor = conn.cursor()
             cursor.execute("""
@@ -390,5 +469,5 @@ class RapportRepository(BaseRepository):
             data.contenu,
             data.format_fichier
         ))
-
-            return data
+        data.id_rapport = cursor.lastrowid
+        return data

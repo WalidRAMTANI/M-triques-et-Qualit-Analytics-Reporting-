@@ -179,7 +179,7 @@ class Rapport(BaseModel):
     Modèle pour les rapports.
     Représente une ligne de la table rapport.
     """
-    id_rapport: int
+    id_rapport: Optional[int] = None
     type_rapport: str
     id_cible: int
     periode_debut: datetime
