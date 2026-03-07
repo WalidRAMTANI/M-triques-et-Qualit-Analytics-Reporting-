@@ -412,12 +412,17 @@ class MetriqueQualiteAAVRepository(BaseRepository):
     def __init__(self):
         super().__init__("metrique_qualite_aav", "id_metrique")
 
-    def create(self, data: MetriqueQualiteAAV) -> int:
+    def create(self, data: MetriqueQualiteAAV) -> MetriqueQualiteAAV:
         """Crée un AAV et retourne son ID."""
         with get_db_connection() as conn:
             cursor = conn.cursor()
+            cursor.execute("SELECT MAX(id_metrique) FROM metrique_qualite_aav")
+            max_id = cursor.fetchone()[0]
+            if max_id is None:
+                max_id = 0
             cursor.execute("""
             INSERT INTO metrique_qualite_aav (
+                id_metrique,
                 id_aav,
                 score_covering_ressources,
                 taux_succes_moyen,
@@ -425,9 +430,12 @@ class MetriqueQualiteAAVRepository(BaseRepository):
                 nb_tentatives_total,
                 nb_apprenants_distincts,
                 ecart_type_scores,
-                date_calcul
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                date_calcul,
+                periode_debut,
+                periode_fin
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """, (
+            max_id + 1,
             data.id_aav,
             data.score_covering_ressources,
             data.taux_succes_moyen,
@@ -435,10 +443,12 @@ class MetriqueQualiteAAVRepository(BaseRepository):
             data.nb_tentatives_total,
             data.nb_apprenants_distincts,
             data.ecart_type_scores,
-            data.date_calcul.isoformat()
+            data.date_calcul.isoformat(),
+            data.periode_debut.isoformat(),
+            data.periode_fin.isoformat()
         ))
-
-            return data
+        data.id_metrique = max_id + 1
+        return data
 
 class RapportRepository(BaseRepository):
     def __init__(self):
@@ -448,26 +458,32 @@ class RapportRepository(BaseRepository):
         """Crate a report and return it."""
         with get_db_connection() as conn:
             cursor = conn.cursor()
+            cursor.execute("SELECT MAX(id_rapport) FROM rapport_periodique")
+            max_id = cursor.fetchone()[0]
+            if max_id is None:
+                max_id = 0
             cursor.execute("""
             INSERT INTO rapport_periodique (
+                id_rapport,
                 type_rapport,
                 id_cible,
+                date_generation,
                 periode_debut,
                 periode_fin,
                 format,
-                date_generation,
                 contenu,
                 format_fichier
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
         """, (
+            max_id + 1,
             data.type_rapport,
             data.id_cible,
+            data.date_generation.isoformat(),
             data.periode_debut.isoformat(),
             data.periode_fin.isoformat(),
             data.format,
-            data.date_generation.isoformat(),
-            data.contenu,
+            to_json(data.contenu),
             data.format_fichier
         ))
-        data.id_rapport = cursor.lastrowid
+        data.id_rapport = max_id + 1
         return data

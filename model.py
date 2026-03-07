@@ -155,6 +155,7 @@ class MetriqueQualiteAAV(BaseModel):
     Modèle pour les métriques de qualité des AAV.
     Représente une ligne de la table metrique_qualite_aav.
     """
+    id_metrique: Optional[int] = None
     id_aav: int
     score_covering_ressources: float
     taux_succes_moyen: float
@@ -163,6 +164,8 @@ class MetriqueQualiteAAV(BaseModel):
     nb_apprenants_distincts: int
     ecart_type_scores: float
     date_calcul: datetime
+    periode_debut: datetime
+    periode_fin: datetime
 
 class LearnerBase(BaseModel):
     """Modèle de base pour un apprenant."""
@@ -188,3 +191,14 @@ class Rapport(BaseModel):
     date_generation: datetime
     contenu: str  # JSON avec les données
     format_fichier: str
+
+class AlerteQualite(BaseModel):
+    id_alerte: int
+    type_alerte: str
+    id_cible: int
+    nom_cible: str
+    severite: str
+    description: str
+    suggestions: list[str]
+    date_detection: datetime
+    status: str

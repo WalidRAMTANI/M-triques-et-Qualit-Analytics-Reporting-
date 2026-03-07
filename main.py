@@ -2,7 +2,8 @@ from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 from fastapi.exceptions import RequestValidationError
 from starlette.exceptions import HTTPException as StarletteHTTPException
-
+import routers.metrics as metrics
+import routers.dashboard as dashboard
 from database import init_database, DatabaseError
 from routers import alerts, reports, comparaison
 
@@ -28,6 +29,10 @@ app.include_router(alerts.router, prefix="/alerts", tags=["alerts"])
 app.include_router(reports.router, prefix="/reports", tags=["reports"])
 #include the comparaison router
 app.include_router(comparaison.router, prefix="/metrics/compare", tags=["comparisons"])
+#include the metrics router
+app.include_router(metrics.router, prefix="/metrics/aav", tags=["metrics"])
+#include the dashboard router
+app.include_router(dashboard.router, prefix="/dashboard", tags=["dashboard"])
 # ============================================
 # GESTIONNAIRES D'EXCEPTIONS GLOBAUX
 # ============================================

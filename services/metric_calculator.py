@@ -171,6 +171,29 @@ def calculer_metriques_aav(id_aav: int) -> MetriqueQualiteAAV:
         nb_tentatives_total=nb_tentatives,
         nb_apprenants_distincts=nb_apprenants,
         ecart_type_scores=ecart_type,
-        date_calcul=datetime.now()
+        date_calcul=datetime.now(),
+        periode_debut=datetime.now(),
+        periode_fin=datetime.now()
     )
     return MetriqueQualiteAAVRepository().create(metrique)
+
+def get_metriques_by_aav(id_aav: int) -> Optional[dict]:
+    with get_db_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute(""" SELECT * from metrique_qualite_aav WHERE id_aav = ? """, (id_aav,))
+        row = cursor.fetchone()
+        return dict(row) 
+
+def get_history_metrics( id_aav: int) -> Optional[List[dict]]:
+    with get_db_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute(""" SELECT * from metrique_qualite_aav WHERE id_aav = ? ORDER BY date_calcul DESC """,(id_aav,))
+        row = cursor.fetchall() 
+        return [dict(r) for r in row]
+
+def get_all_metrics() -> List :
+    with get_db_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute(""" SELECT * from metrique_qualite_aav """)
+        row = cursor.fetchone()
+        return list(row) 

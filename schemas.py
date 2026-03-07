@@ -90,4 +90,11 @@ class ApprenantComparaison(BaseModel):
     nb_tentatives: int
     progression: float
     aavs_bloques: int       
-    
+
+class TeacherDashboard(BaseModel):
+    moyenne : float
+
+class DisciplineDashboard(BaseModel):
+    moyenne : float
+    moyenne_covering : float
+    nb : int

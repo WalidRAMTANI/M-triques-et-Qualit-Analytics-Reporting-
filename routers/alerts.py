@@ -15,7 +15,7 @@ router = APIRouter()
 def get_difficult_aavs() -> List[AAVDifficile]:
     """Récupère les AAV avec un taux de succès trop bas."""
     return detecter_aavs_difficiles()
-
+    
 @router.get("/unused-aavs", response_model=List[AAVInutilise])
 def get_unused_aavs() -> List[AAVInutilise]:
     """Récupère les AAV jamais utilisés."""
