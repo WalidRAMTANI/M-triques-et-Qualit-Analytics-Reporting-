@@ -495,7 +495,7 @@ class RapportRepository(BaseRepository):
             data.periode_debut.isoformat(),
             data.periode_fin.isoformat(),
             data.format,
-            to_json(data.contenu),
+            data.contenu,
             data.format_fichier
         ))
         data.id_rapport = max_id + 1
