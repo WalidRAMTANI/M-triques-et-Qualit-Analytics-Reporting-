@@ -147,6 +147,16 @@ SCHEMA_RAPPORT_PERIODIQUE = """
     )
 """
 
+SCHEMA_ENSEIGNANT = """
+            CREATE TABLE IF NOT EXISTS enseignant (
+            id_enseignant INTEGER PRIMARY KEY,
+            nom TEXT ,
+            email TEXT,
+            discipline TEXT, --JSON array: ["Mathématiques", "Physique"]
+            date_creation TIMESTAMP
+            )
+"""
+
 # ==============================================================
 # CATALOGUE COMPLET
 # ==============================================================
@@ -158,6 +168,7 @@ TABLES_COMMUNES = {
     "statut_apprentissage": SCHEMA_STATUT_APPRENTISSAGE,
     "tentative": SCHEMA_TENTATIVE,
 }
+
 
 TABLES_GROUPE_7 = {
     "metrique_qualite_aav": SCHEMA_METRIQUE_QUALITE_AAV,

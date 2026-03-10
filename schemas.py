@@ -92,9 +92,16 @@ class ApprenantComparaison(BaseModel):
     aavs_bloques: int       
 
 class TeacherDashboard(BaseModel):
-    moyenne : float
+    moyenne: float
+    nb_aav: int
+    nb_apprenants: int
 
 class DisciplineDashboard(BaseModel):
     moyenne : float
     moyenne_covering : float
     nb : int
+
+class OntologyCoverage(BaseModel):
+    """Schéma pour la couverture d'une ontologie."""
+    nb_aav: int
+    moyenne_covering: float

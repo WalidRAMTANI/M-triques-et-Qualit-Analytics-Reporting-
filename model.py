@@ -202,3 +202,10 @@ class AlerteQualite(BaseModel):
     suggestions: list[str]
     date_detection: datetime
     status: str
+
+class Enseignant:
+    nom : str
+    email: str
+    discipline : List[str]
+    id_enseignant : Optional[int] = None
+    date_creation : Optional[datetime] = None

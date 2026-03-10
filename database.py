@@ -13,7 +13,7 @@ import json
 from contextlib import contextmanager
 from typing import Optional, List, Dict, Any
 from pathlib import Path
-from model import MetriqueQualiteAAV, Rapport
+from model import MetriqueQualiteAAV, Rapport, Enseignant
 # Configuration
 DATABASE_PATH = Path("platonAAV.db")
 
@@ -74,6 +74,7 @@ def init_database():
                 libelle_integration TEXT,
                 discipline TEXT NOT NULL,
                 enseignement TEXT,
+                id_enseignant INTEGER, -- clé étrangere (enseignant) 
                 type_aav TEXT CHECK(type_aav IN ('Atomique', 'Composite (Chapitre)')),
                 description_markdown TEXT,
                 prerequis_ids TEXT,  -- Stocké en JSON: [1, 2, 3]
@@ -84,6 +85,7 @@ def init_database():
                     'Humaine', 'Calcul Automatisé', 'Compréhension par Chute',
                     'Validation par Invention', 'Exercice de Critique',
                     'Évaluation par les Pairs', 'Agrégation (Composite)'
+                
                 )),
                 ids_exercices TEXT,  -- JSON: [101, 102, 103]
                 prompts_fabrication_ids TEXT,  -- JSON: [201, 202]
@@ -91,7 +93,8 @@ def init_database():
                 is_active BOOLEAN DEFAULT 1,
                 version INTEGER DEFAULT 1,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (id_enseignant) REFERENCES enseignant(id_enseignant)
             )
         """)
 
@@ -327,6 +330,16 @@ def init_database():
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_rapport_type ON rapport_periodique(type_rapport)")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_rapport_date ON rapport_periodique(date_generation)")
 
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS enseignant (
+            id_enseignant INTEGER PRIMARY KEY,
+            nom TEXT ,
+            email TEXT,
+            discipline TEXT, --JSON array: ["Mathématiques", "Physique"]
+            date_creation TIMESTAMP
+            )
+            """)
+
         conn.commit()
         print("Base de données initialisée avec succès")
 
@@ -487,3 +500,18 @@ class RapportRepository(BaseRepository):
         ))
         data.id_rapport = max_id + 1
         return data
+
+class EnseignantRepository(BaseRepository):
+        def __init__(self):
+            super().__init__("enseignant", "id_enseignant")
+        
+        def create(self, data :Enseignant) -> Enseignant:
+            with get_db_connection() as conn:
+                cursor = conn.cursor()
+                cursor.execute("""
+                INSERT INTO enseignant(nom, email, discipline) VALUES (?,?,?)
+                
+                """, (data.nom, data.email,to_json(data.disciplines)))
+                data.id_enseignant = cursor.lastrowid
+
+            return data

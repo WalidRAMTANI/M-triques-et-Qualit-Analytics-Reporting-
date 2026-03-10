@@ -178,13 +178,21 @@ def calculer_metriques_aav(id_aav: int) -> MetriqueQualiteAAV:
     return MetriqueQualiteAAVRepository().create(metrique)
 
 def get_metriques_by_aav(id_aav: int) -> Optional[dict]:
+    """
+    Retrieves the most recent quality metrics for a specific AAV.
+    Returns a dictionary of columns or None if not found.
+    """
     with get_db_connection() as conn:
         cursor = conn.cursor()
         cursor.execute(""" SELECT * from metrique_qualite_aav WHERE id_aav = ? """, (id_aav,))
         row = cursor.fetchone()
         return dict(row) 
 
-def get_history_metrics( id_aav: int) -> Optional[List[dict]]:
+def get_history( id_aav: int) -> Optional[List[dict]]:
+    """
+    Retrieves the full history of calculated metrics for a specific AAV,
+    sorted by calculation date (most recent first).
+    """
     with get_db_connection() as conn:
         cursor = conn.cursor()
         cursor.execute(""" SELECT * from metrique_qualite_aav WHERE id_aav = ? ORDER BY date_calcul DESC """,(id_aav,))
@@ -192,6 +200,9 @@ def get_history_metrics( id_aav: int) -> Optional[List[dict]]:
         return [dict(r) for r in row]
 
 def get_all_metrics() -> List :
+    """
+    Retrieves the latest metrics for all AAVs in the database.
+    """
     with get_db_connection() as conn:
         cursor = conn.cursor()
         cursor.execute(""" SELECT * from metrique_qualite_aav """)
