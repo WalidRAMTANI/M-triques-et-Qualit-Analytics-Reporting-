@@ -1,8 +1,0 @@
-#!/bin/sh
-'''exec' "/Users/ramtani/Documents/important apps/learning/computer science/python project/projet7/projet7/bin/python3" "$0" "$@"
-' '''
-import sys
-from fastapi.cli import main
-if __name__ == '__main__':
-    sys.argv[0] = sys.argv[0].removesuffix('.exe')
-    sys.exit(main())

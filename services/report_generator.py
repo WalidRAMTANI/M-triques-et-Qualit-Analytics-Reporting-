@@ -5,8 +5,8 @@ from services.metric_calculator import get_all_aavs, get_aav,calculer_couverture
 from database import to_json, RapportRepository
 from services.alert_detector import detecter_aavs_difficiles, detecter_aavs_fragiles,detecter_aavs_inutilises
 
-from model import Rapport, LearnerBase
-from schemas import AAVComparaison, ApprenantComparaison, RapportGlobalResponse
+from model.model import Rapport, LearnerBase
+from model.schemas import AAVComparaison, ApprenantComparaison, RapportGlobalResponse
 
 
 # helper for pdf
@@ -111,7 +111,7 @@ def generate_csv_string(data, field):
 
 
 def get_student(student_id: int) -> LearnerBase:
-    """Récupère un apprenant par son ID. Retourne None si introuvable."""
+    """Retrieves a learner by their ID. Returns None if not found."""
     with get_db_connection() as conn:
         cursor = conn.cursor()
         cursor.execute("SELECT * FROM apprenant WHERE id_apprenant = ?", (student_id,))
@@ -128,7 +128,7 @@ def get_student(student_id: int) -> LearnerBase:
 
 def collect_data_for_aav(id_aav: int,format: str) -> AAVComparaison:
     """
-    Collecte toutes les données nécessaires pour un AAV donné.
+    Collects all necessary data for a given AAV.
     """
     aav = get_aav(id_aav)
     if not aav:
@@ -153,7 +153,7 @@ def collect_data_for_aav(id_aav: int,format: str) -> AAVComparaison:
     
 def collect_data_for_student(id_cible: int,format: str) -> dict:
     """
-    Collecte toutes les données nécessaires pour un apprenant donné.
+    Collects all necessary data for a given learner.
     """
     student = get_student(id_cible)
     if not student:
@@ -198,7 +198,7 @@ def collect_data_for_student(id_cible: int,format: str) -> dict:
 
 def collect_data_for_discipline(id_cible: str,format: str) -> dict:
     """
-    Collecte toutes les données nécessaires pour une discipline donnée.
+    Collects all necessary data for a given discipline.
     """
     aavs = [aav for aav in get_all_aavs() if aav["discipline"] == id_cible]
     aav_ids = {aav["id_aav"] for aav in aavs}  
@@ -213,9 +213,9 @@ def collect_data_for_discipline(id_cible: str,format: str) -> dict:
             "utilisabilite": determiner_utilisabilite(aav["id_aav"])
         })
     if format == "csv":
-        difficiles_ids = {a["id_aav"] for a in detecter_aavs_difficiles() if a["id_aav"] in aav_ids}
-        fragiles_ids = {a["id_aav"] for a in detecter_aavs_fragiles() if a["id_aav"] in aav_ids}
-        inutilises_ids = {a["id_aav"] for a in detecter_aavs_inutilises() if a["id_aav"] in aav_ids}
+        difficiles_ids = {a.id_aav for a in detecter_aavs_difficiles() if a.id_aav in aav_ids}
+        fragiles_ids = {a.id_aav for a in detecter_aavs_fragiles() if a.id_aav in aav_ids}
+        inutilises_ids = {a.id_aav for a in detecter_aavs_inutilises() if a.id_aav in aav_ids}
         
         flat_data = []
         for aav_data in results:
@@ -240,9 +240,9 @@ def collect_data_for_discipline(id_cible: str,format: str) -> dict:
             "nb_aavs": len(results),
             "aavs": results,
             "alertes": {
-                "difficiles": [a for a in detecter_aavs_difficiles() if a["id_aav"] in aav_ids],
-                "fragiles":   [a for a in detecter_aavs_fragiles()   if a["id_aav"] in aav_ids],
-                "inutilises": [a for a in detecter_aavs_inutilises() if a["id_aav"] in aav_ids]
+                "difficiles": [a.model_dump() for a in detecter_aavs_difficiles() if a.id_aav in aav_ids],
+                "fragiles":   [a.model_dump() for a in detecter_aavs_fragiles()   if a.id_aav in aav_ids],
+                "inutilises": [a.model_dump() for a in detecter_aavs_inutilises() if a.id_aav in aav_ids]
             }
         }
         return to_pdf(data_dict, title=f"Rapport Discipline - {id_cible}")
@@ -252,9 +252,9 @@ def collect_data_for_discipline(id_cible: str,format: str) -> dict:
             "aavs": results,
             "nb_aavs": len(results),
             "alertes": {
-                "difficiles": [a for a in detecter_aavs_difficiles() if a["id_aav"] in aav_ids],
-                "fragiles":   [a for a in detecter_aavs_fragiles()   if a["id_aav"] in aav_ids],
-                "inutilises": [a for a in detecter_aavs_inutilises() if a["id_aav"] in aav_ids]
+                "difficiles": [a.model_dump() for a in detecter_aavs_difficiles() if a.id_aav in aav_ids],
+                "fragiles":   [a.model_dump() for a in detecter_aavs_fragiles()   if a.id_aav in aav_ids],
+                "inutilises": [a.model_dump() for a in detecter_aavs_inutilises() if a.id_aav in aav_ids]
             }
         }
     else:
@@ -263,15 +263,25 @@ def collect_data_for_discipline(id_cible: str,format: str) -> dict:
 def generer_rapport_personnalise(type, id_cible, debut, fin, format):
     """
     Generate a personalized report based on the type of report, id_cible, date_debut, date_fin and format.
+    Validates that id_cible exists before generating the report.
+    Returns None if the target is not found.
     """
     if type == "aav":
-        data = collect_data_for_aav(int(id_cible),format)
+        if not get_aav(int(id_cible)):
+            return None
+        data = collect_data_for_aav(int(id_cible), format)
     elif type == "student":
-        data = collect_data_for_student(int(id_cible),format)
+        if not get_student(int(id_cible)):
+            return None
+        data = collect_data_for_student(int(id_cible), format)
     elif type == "discipline":
-        data = collect_data_for_discipline(id_cible,format)
+        # Check that at least one AAV exists for this discipline
+        aavs = [aav for aav in get_all_aavs() if aav["discipline"] == id_cible]
+        if not aavs:
+            return None
+        data = collect_data_for_discipline(id_cible, format)
     else:
-        raise ValueError(f"Type de rapport inconnu : {type}")
+        raise ValueError(f"Unknown report type: {type}")
 
     if not data:
         return None

@@ -2,6 +2,14 @@ from database import get_db_connection
 from typing import Optional
 from database import from_json
 
+def get_enseignant(id_enseignant):
+    with get_db_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute(""" SELECT * from enseignant where id_enseignant = ? """, (id_enseignant,))
+        row = cursor.fetchone()
+        if not row:
+            return None
+        return dict(row)
 def get_teacher_stats(teacher_id: int)-> Optional[dict]:
     """Calculates the overall performance of a teacher's students. It first identifies the subjects taught,
        then computes the average success rate and the total number of students involved"""
@@ -23,14 +31,14 @@ def get_teacher_stats(teacher_id: int)-> Optional[dict]:
         result = dict(res)
         result["disciplines"] = res_discipline
         return result
-def get_discipline_stats( discipline_name: str)-> Optional[dict]:
+def get_discipline_stats( discipline_name: str):
     """
     Global discipline analysis: average success and resource coverage rate.
     """
     with get_db_connection() as conn:
         cursor = conn.cursor()
         cursor.execute(""" SELECT COALESCE(AVG(taux_succes_moyen), 0) AS moyenne, 
-                        AVG(score_covering_ressources) AS moyenne_covering, COUNT(aav.id_aav) AS nb 
+                        COALESCE(AVG(score_covering_ressources), 0) AS moyenne_covering, COUNT(aav.id_aav) AS nb 
                         from metrique_qualite_aav join aav on metrique_qualite_aav.id_aav = aav.id_aav WHERE discipline = ? """, (discipline_name,))
         res = cursor.fetchone()
         return dict(res) 
@@ -53,6 +61,6 @@ def get_ontology_cov( id_reference: int)-> Optional[dict]:
             char += "?"
             if elem < len(res_ids) - 1:
                 char += ","
-        cursor.execute(f""" select count(id_aav) as nb_aav, COALESCE(AVG(score_covering_ressources)) as moyenne_covering from metrique_qualite_aav where id_aav IN ({char}) """, res_ids)
+        cursor.execute(f""" select count(id_aav) as nb_aav, COALESCE(AVG(score_covering_ressources), 0) as moyenne_covering from metrique_qualite_aav where id_aav IN ({char}) """, res_ids)
         res = cursor.fetchone()
         return dict(res)

@@ -13,7 +13,7 @@ import json
 from contextlib import contextmanager
 from typing import Optional, List, Dict, Any
 from pathlib import Path
-from model import MetriqueQualiteAAV, Rapport, Enseignant
+from model.model import MetriqueQualiteAAV, Rapport, Enseignant
 # Configuration
 DATABASE_PATH = Path("platonAAV.db")
 
@@ -26,7 +26,7 @@ class DatabaseError(Exception):
 @contextmanager
 def get_db_connection():
     """
-    Context manager pour gérer les connexions SQLite3.
+    Context manager for handling SQLite3 connections.
 
     Usage:
         with get_db_connection() as conn:
@@ -34,10 +34,10 @@ def get_db_connection():
             cursor.execute("SELECT * FROM aav")
             results = cursor.fetchall()
 
-    Avantages:
-    - Gestion automatique des transactions (commit/rollback)
-    - Fermeture garantie de la connexion
-    - Accessibilité des colonnes par nom (row_factory)
+    Benefits:
+    - Automatic transaction management (commit/rollback)
+    - Guaranteed connection closure
+    - Column accessibility by name (row_factory)
     """
     conn = sqlite3.connect(DATABASE_PATH)
     # Permet d'accéder aux colonnes par nom: row['nom_colonne']
@@ -55,8 +55,8 @@ def get_db_connection():
 
 def init_database():
     """
-    Initialise la base de données avec les tables communes.
-    Chaque groupe ajoute ses propres tables ici.
+    Initializes the database with common tables.
+    Each group adds their own tables here.
     """
     with get_db_connection() as conn:
         cursor = conn.cursor()
@@ -349,14 +349,14 @@ def init_database():
 # ============================================
 
 def to_json(data: Any) -> Optional[str]:
-    """Convertit une donnée Python en chaîne JSON pour stockage SQLite."""
+    """Converts a Python data type to a JSON string for SQLite storage."""
     if data is None:
         return None
     return json.dumps(data, ensure_ascii=False)
 
 
 def from_json(json_str: Optional[str]) -> Any:
-    """Convertit une chaîne JSON SQLite en donnée Python."""
+    """Converts an SQLite JSON string to a Python data type."""
     if json_str is None:
         return None
     return json.loads(json_str)
@@ -369,10 +369,10 @@ def from_json(json_str: Optional[str]) -> Any:
 class BaseRepository:
 
     """
-    Classe de base pour tous les repositories.
-    Fournit les opérations CRUD standardisées.
+    Base class for all repositories.
+    Provides standard CRUD operations.
 
-    Exemple d'utilisation :
+    Usage example:
         class MetriqueRepository(BaseRepository):
             def __init__(self):
                 super().__init__("metrique_qualite_aav", "id_metrique")
@@ -383,7 +383,7 @@ class BaseRepository:
         self.primary_key = primary_key
 
     def get_by_id(self, id_value: int) -> Optional[Dict[str, Any]]:
-        """Récupère un enregistrement par sa clé primaire."""
+        """Retrieves a record by its primary key."""
         with get_db_connection() as conn:
             cursor = conn.cursor()
             cursor.execute(
@@ -394,7 +394,7 @@ class BaseRepository:
             return dict(row) if row else None
 
     def get_all(self, limit: int = 100, offset: int = 0) -> List[Dict[str, Any]]:
-        """Récupère tous les enregistrements avec pagination."""
+        """Retrieves all records with pagination."""
         with get_db_connection() as conn:
             cursor = conn.cursor()
             cursor.execute(
@@ -404,7 +404,7 @@ class BaseRepository:
             return [dict(row) for row in cursor.fetchall()]
 
     def delete(self, id_value: int) -> bool:
-        """Supprime un enregistrement. Retourne True si supprimé."""
+        """Deletes a record. Returns True if successfully deleted."""
         with get_db_connection() as conn:
             cursor = conn.cursor()
             cursor.execute(
@@ -414,7 +414,7 @@ class BaseRepository:
             return cursor.rowcount > 0
 
     def count(self) -> int:
-        """Retourne le nombre total d'enregistrements dans la table."""
+        """Returns the total number of records in the table."""
         with get_db_connection() as conn:
             cursor = conn.cursor()
             cursor.execute(f"SELECT COUNT(*) FROM {self.table_name}")
@@ -426,7 +426,7 @@ class MetriqueQualiteAAVRepository(BaseRepository):
         super().__init__("metrique_qualite_aav", "id_metrique")
 
     def create(self, data: MetriqueQualiteAAV) -> MetriqueQualiteAAV:
-        """Crée un AAV et retourne son ID."""
+        """Creates an AAV and returns its ID."""
         with get_db_connection() as conn:
             cursor = conn.cursor()
             cursor.execute("SELECT MAX(id_metrique) FROM metrique_qualite_aav")
@@ -468,6 +468,7 @@ class RapportRepository(BaseRepository):
         super().__init__("rapport_periodique", "id_rapport")
 
     def create(self, data: Rapport) -> Rapport:
+        from datetime import datetime
         """Crate a report and return it."""
         with get_db_connection() as conn:
             cursor = conn.cursor()
@@ -492,12 +493,14 @@ class RapportRepository(BaseRepository):
             data.type_rapport,
             data.id_cible,
             data.date_generation.isoformat(),
-            data.periode_debut.isoformat(),
-            data.periode_fin.isoformat(),
+            data.periode_debut.isoformat() if data.periode_debut is not None else datetime.now().isoformat(),
+            data.periode_fin.isoformat() if data.periode_fin is not None else datetime.now().isoformat(),
             data.format,
             data.contenu,
             data.format_fichier
         ))
+        data.periode_debut = data.periode_debut.isoformat() if data.periode_debut is not None else datetime.now().isoformat()
+        data.periode_fin = data.periode_fin.isoformat() if data.periode_fin is not None else datetime.now().isoformat()
         data.id_rapport = max_id + 1
         return data
 

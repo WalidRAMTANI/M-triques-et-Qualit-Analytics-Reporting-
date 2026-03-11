@@ -18,7 +18,7 @@ app = FastAPI(
 # ============================================
 @app.on_event("startup")
 def startup():
-    """Crée toutes les tables au démarrage (communes + Groupe 7)."""
+    """Creates all tables on startup (common + Group 7)."""
     init_database()
 # ============================================
 # ROUTERS
@@ -39,7 +39,7 @@ app.include_router(dashboard.router, prefix="/dashboard", tags=["dashboard"])
 
 @app.exception_handler(StarletteHTTPException)
 async def http_exception_handler(request: Request, exc: StarletteHTTPException):
-    """Gère les erreurs HTTP 404, 400, etc."""
+    """Handles HTTP 404, 400, etc. errors."""
     return JSONResponse(
         status_code=exc.status_code,
         content={
@@ -52,7 +52,7 @@ async def http_exception_handler(request: Request, exc: StarletteHTTPException):
 
 @app.exception_handler(RequestValidationError)
 async def validation_exception_handler(request: Request, exc: RequestValidationError):
-    """Gère les erreurs de validation Pydantic (422)."""
+    """Handles Pydantic validation errors (422)."""
     errors = []
     for error in exc.errors():
         errors.append({
@@ -73,7 +73,7 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
 
 @app.exception_handler(DatabaseError)
 async def database_exception_handler(request: Request, exc: DatabaseError):
-    """Gère les erreurs de base de données."""
+    """Handles database errors."""
     return JSONResponse(
         status_code=500,
         content={
@@ -86,7 +86,7 @@ async def database_exception_handler(request: Request, exc: DatabaseError):
 
 @app.exception_handler(Exception)
 async def general_exception_handler(request: Request, exc: Exception):
-    """Attrape toutes les exceptions non gérées."""
+    """Catches all unhandled exceptions."""
     return JSONResponse(
         status_code=500,
         content={

@@ -2,10 +2,10 @@ import statistics
 from typing import List, Optional
 from database import get_db_connection
 from services.metric_calculator import calculer_taux_succes, get_all_aavs, count_attempts, get_all_attempts_for_aav
-from schemas import AAVDifficile, AAVInutilise, AAVFragile, ApprenantRisque
+from model.schemas import AAVDifficile, AAVInutilise, AAVFragile, ApprenantRisque
 
 def get_apprenants_ontologie(ontologie_id: int) -> List[dict]:
-    """Récupère tous les apprenants ayant une ontologie donnée."""
+    """Retrieves all learners with a given ontology."""
     with get_db_connection() as conn:
         cursor = conn.cursor()
         cursor.execute(
@@ -16,7 +16,7 @@ def get_apprenants_ontologie(ontologie_id: int) -> List[dict]:
 
 
 def count_aavs_bloques(apprenant_id: int) -> int:
-    """Compte le nombre d'AAVs non maîtrisés pour un apprenant."""
+    """Counts the number of non-mastered AAVs for a learner."""
     with get_db_connection() as conn:
         cursor = conn.cursor()
         cursor.execute(
@@ -27,7 +27,7 @@ def count_aavs_bloques(apprenant_id: int) -> int:
 
 
 def calculer_progression(apprenant_id: int) -> float:
-    """Calcule la progression moyenne d'un apprenant (moyenne du niveau de maîtrise)."""
+    """Calculates the average progression of a learner (average mastery level)."""
     with get_db_connection() as conn:
         cursor = conn.cursor()
 
@@ -44,7 +44,7 @@ def calculer_progression(apprenant_id: int) -> float:
 # ==============================================================
 
 def detecter_aavs_difficiles(seuil_taux_succes: float = 0.3) -> List[AAVDifficile]:
-    """AAV avec taux de succès moyen < seuil (trop difficiles pour les apprenants)."""
+    """AAVs with an average success rate < threshold (too difficult for learners)."""
     problematiques = []
     for aav in get_all_aavs():
         taux = calculer_taux_succes(aav["id_aav"])
@@ -60,7 +60,7 @@ def detecter_aavs_difficiles(seuil_taux_succes: float = 0.3) -> List[AAVDifficil
 
 
 def detecter_apprenants_risque(id_ontologie: int, seuil_avancement: float = 0.1) -> List[ApprenantRisque]:
-    """Apprenants avec progression anormalement faible."""
+    """Learners with an abnormally low progression."""
     risques = []
     for apprenant in get_apprenants_ontologie(id_ontologie):
         progression = calculer_progression(apprenant["id_apprenant"])
@@ -75,7 +75,7 @@ def detecter_apprenants_risque(id_ontologie: int, seuil_avancement: float = 0.1)
 
 
 def detecter_aavs_inutilises() -> List[AAVInutilise]:
-    """Retourne les AAVs qui n'ont jamais été tentés (0 tentatives)."""
+    """Returns AAVs that have never been attempted (0 attempts)."""
     return [
         AAVInutilise(
             id_aav=aav["id_aav"],
@@ -88,8 +88,8 @@ def detecter_aavs_inutilises() -> List[AAVInutilise]:
 
 def detecter_aavs_fragiles(seuil_ecart_type: float = 0.35) -> List[AAVFragile]:
     """
-    Retourne les AAVs dont les scores ont une forte variance.
-    Un AAV est fragile si écart-type des scores > seuil (0.35 par défaut).
+    Returns AAVs whose scores have a high variance.
+    An AAV is fragile if the standard deviation of scores > threshold (0.35 by default).
     """
     fragiles = []
     for aav in get_all_aavs():

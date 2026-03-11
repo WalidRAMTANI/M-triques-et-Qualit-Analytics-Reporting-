@@ -2,12 +2,12 @@ import statistics
 from typing import List, Optional
 from datetime import datetime
 from database import get_db_connection, from_json
-from model import MetriqueQualiteAAV
+from model.model import MetriqueQualiteAAV
 from database import MetriqueQualiteAAVRepository
 
 
 def count_exercices(aav_id: int) -> int:
-    """Compte le nombre d'exercices d'un AAV (stockés en JSON dans la colonne ids_exercices)."""
+    """Counts the number of exercises for an AAV (stored as JSON in the ids_exercices column)."""
     with get_db_connection() as conn:
         cursor = conn.cursor()
         cursor.execute("SELECT ids_exercices FROM aav WHERE id_aav = ?", (aav_id,))
@@ -19,7 +19,7 @@ def count_exercices(aav_id: int) -> int:
 
 
 def count_prompts(aav_id: int) -> int:
-    """Compte le nombre de prompts d'un AAV (stockés en JSON dans prompts_fabrication_ids)."""
+    """Counts the number of prompts for an AAV (stored as JSON in prompts_fabrication_ids)."""
     with get_db_connection() as conn:
         cursor = conn.cursor()
         cursor.execute("SELECT prompts_fabrication_ids FROM aav WHERE id_aav = ?", (aav_id,))
@@ -31,7 +31,7 @@ def count_prompts(aav_id: int) -> int:
 
 
 def diversity_evaluation_types(aav_id: int) -> int:
-    """Compte le nombre de types d'évaluation distincts utilisés sur cet AAV."""
+    """Counts the number of distinct evaluation types used for this AAV."""
     with get_db_connection() as conn:
         cursor = conn.cursor()
         cursor.execute("""
@@ -44,7 +44,7 @@ def diversity_evaluation_types(aav_id: int) -> int:
 
 
 def get_all_attempts_for_aav(aav_id: int) -> List[dict]:
-    """Récupère toutes les tentatives pour un AAV donné."""
+    """Retrieves all attempts for a given AAV."""
     with get_db_connection() as conn:
         cursor = conn.cursor()
         cursor.execute(
@@ -55,7 +55,7 @@ def get_all_attempts_for_aav(aav_id: int) -> List[dict]:
 
 
 def get_aav(aav_id: int) -> Optional[dict]:
-    """Récupère un AAV par son ID. Retourne None si introuvable."""
+    """Retrieves an AAV by its ID. Returns None if not found."""
     with get_db_connection() as conn:
         cursor = conn.cursor()
         cursor.execute("SELECT * FROM aav WHERE id_aav = ?", (aav_id,))
@@ -64,7 +64,7 @@ def get_aav(aav_id: int) -> Optional[dict]:
 
 
 def get_all_aavs() -> List[dict]:
-    """Récupère tous les AAVs actifs."""
+    """Retrieves all active AAVs."""
     with get_db_connection() as conn:
         cursor = conn.cursor()
         cursor.execute("SELECT * FROM aav WHERE is_active = 1")
@@ -72,7 +72,7 @@ def get_all_aavs() -> List[dict]:
 
 
 def count_attempts(aav_id: int) -> int:
-    """Compte le nombre total de tentatives pour un AAV."""
+    """Counts the total number of attempts for an AAV."""
     with get_db_connection() as conn:
         cursor = conn.cursor()
 
@@ -84,7 +84,7 @@ def count_attempts(aav_id: int) -> int:
 
 
 def count_distinct_learners(aav_id: int) -> int:
-    """Compte le nombre d'apprenants distincts ayant tenté cet AAV."""
+    """Counts the number of distinct learners who attempted this AAV."""
     with get_db_connection() as conn:
         cursor = conn.cursor()
         cursor.execute(
@@ -96,10 +96,10 @@ def count_distinct_learners(aav_id: int) -> int:
 
 def calculer_couverture(aav_id: int) -> float:
     """
-    Mesure la couverture des ressources pour un AAV.
-    - Présence d'exercices : 0.4 points
-    - Présence de prompts  : 0.3 points
-    - Diversité des types d'évaluation >= 3 : 0.3 points
+    Measures resource coverage for an AAV.
+    - Presence of exercises: 0.4 points
+    - Presence of prompts: 0.3 points
+    - Diversity of evaluation types >= 3: 0.3 points
     """
     score = 0.0
     if count_exercices(aav_id) > 0:
@@ -124,11 +124,11 @@ def calculer_taux_succes(aav_id: int) -> float:
 
 def determiner_utilisabilite(aav_id: int) -> bool:
     """
-    Un AAV est utilisable si :
-    - couverture >= 0.7
-    - taux_succes_moyen > 0.2 (pas impossible)
-    - taux_succes_moyen < 0.95 (pas trivial)
-    - définition claire (champs obligatoires présents)
+    An AAV is usable if:
+    - coverage >= 0.7
+    - average_success_rate > 0.2 (not impossible)
+    - average_success_rate < 0.95 (not trivial)
+    - clear definition (mandatory fields present)
     """
     aav = get_aav(aav_id)
     if not aav:
@@ -147,10 +147,10 @@ def determiner_utilisabilite(aav_id: int) -> bool:
 
 def calculer_metriques_aav(id_aav: int) -> MetriqueQualiteAAV:
     """
-    Calcule toutes les métriques pour un AAV et les sauvegarde
-    dans la table metrique_qualite_aav.
+    Calculates all metrics for an AAV and saves them
+    in the metrique_qualite_aav table.
 
-    Retourne un MetriqueQualiteAAV avec toutes les métriques calculées.
+    Returns a MetriqueQualiteAAV with all calculated metrics.
     """
     couverture   = calculer_couverture(id_aav)
     taux_succes  = calculer_taux_succes(id_aav)
@@ -199,12 +199,24 @@ def get_history( id_aav: int) -> Optional[List[dict]]:
         row = cursor.fetchall() 
         return [dict(r) for r in row]
 
-def get_all_metrics() -> List :
+def get_all_metrics(filters: dict) -> List :
     """
-    Retrieves the latest metrics for all AAVs in the database.
+    Retrieves the latest metrics for all AAVs in the database, with optional filters.
     """
     with get_db_connection() as conn:
         cursor = conn.cursor()
-        cursor.execute(""" SELECT * from metrique_qualite_aav """)
-        row = cursor.fetchone()
-        return list(row) 
+        score_covering_ressources = filters.get("score_covering_ressources") if filters.get("score_covering_ressources") is not None else 0
+        taux_succes_moyen = filters.get("taux_succes_moyen") if filters.get("taux_succes_moyen") is not None else 0
+        nb_tentatives_total = filters.get("nb_tentatives_total") if filters.get("nb_tentatives_total") is not None else 0
+        nb_apprenants_distincts = filters.get("nb_apprenants_distincts") if filters.get("nb_apprenants_distincts") is not None else 0
+        ecart_type_scores = filters.get("ecart_type_scores") if filters.get("ecart_type_scores") is not None else 0
+        print(score_covering_ressources, taux_succes_moyen, nb_tentatives_total, nb_apprenants_distincts, ecart_type_scores)
+        #score_covering_ressources, taux_succes_moyen, est_utilisable, nb_tentatives_total, nb_apprenants_distincts, ecart_type_scores
+        query = "SELECT * from metrique_qualite_aav where score_covering_ressources >= ? and taux_succes_moyen >= ? and taux_succes_moyen >= ? and nb_tentatives_total >= ? and nb_apprenants_distincts >= ? and ecart_type_scores >= ?"
+        
+        cursor.execute(query, (score_covering_ressources, taux_succes_moyen, taux_succes_moyen, nb_tentatives_total, nb_apprenants_distincts, ecart_type_scores,))
+        row = cursor.fetchall()
+        print(row)
+        return [MetriqueQualiteAAV(**r) for r in row] 
+
+    

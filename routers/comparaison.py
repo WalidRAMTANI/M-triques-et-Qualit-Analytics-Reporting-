@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Query, HTTPException
-from schemas import AAVComparaison, ApprenantComparaison
+from model.schemas import AAVComparaison, ApprenantComparaison
 from services.report_generator import collect_data_for_aav, collect_data_for_student
 from typing import List
 from services.alert_detector import get_apprenants_ontologie, calculer_progression, count_aavs_bloques
