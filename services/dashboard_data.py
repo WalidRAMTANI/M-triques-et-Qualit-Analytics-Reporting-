@@ -3,7 +3,8 @@ from typing import Optional
 from database import from_json
 
 def get_teacher_stats(teacher_id: int)-> Optional[dict]:
-
+    """Calculates the overall performance of a teacher's students. It first identifies the subjects taught,
+       then computes the average success rate and the total number of students involved"""
     with get_db_connection() as coon:
         cursor = coon.cursor()
         cursor.execute(""" SELECT discipline from enseignant where id_enseignant = ? """, (teacher_id,))

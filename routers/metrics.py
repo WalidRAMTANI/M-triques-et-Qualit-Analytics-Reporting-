@@ -7,6 +7,7 @@ router = APIRouter()
 
 @router.get("/{id_aav}", response_model=MetriqueQualiteAAV)
 def metrique_qualite_aav(id_aav: int):
+    
     metriques = get_metriques_by_aav(id_aav)
     if not metriques:
         raise HTTPException(status_code=404, detail=f"Aucune métrique trouvée pour l'AAV {id_aav}")
