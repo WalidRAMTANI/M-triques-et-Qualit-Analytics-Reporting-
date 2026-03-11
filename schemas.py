@@ -95,6 +95,7 @@ class TeacherDashboard(BaseModel):
     moyenne: float
     nb_aav: int
     nb_apprenants: int
+    disciplines: list[str]
 
 class DisciplineDashboard(BaseModel):
     moyenne : float

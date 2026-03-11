@@ -2,20 +2,26 @@ from database import get_db_connection
 from typing import Optional
 from database import from_json
 
-def get_teacher_stats(teacher_id: str, discipline: str)-> Optional[dict]:
-    """
-    Calculates overall teacher performance for a specific discipline.
-    Joins AAVs with metrics and counts unique students via attempts.
-    """
+def get_teacher_stats(teacher_id: int)-> Optional[dict]:
+
     with get_db_connection() as coon:
         cursor = coon.cursor()
-        cursor.execute(""" SELECT COALESCE(AVG(metr.taux_succes_moyen), 0) AS moyenne , count(DISTINCT aav.id_aav) AS nb_aav, count(DISTINCT tent.id_apprenant) AS nb_apprenants
-                        from enseignant as ens left join aav on aav.id_enseignant = ens.id_enseignant left join metrique_qualite_aav as metr on metr.id_aav = aav.id_aav left join tentative as tent on tent.id_aav_cible = aav.id_aav
-                        where ens.id_enseignant = ? and aav.discipline = ?
-                        """, (teacher_id, discipline))
+        cursor.execute(""" SELECT discipline from enseignant where id_enseignant = ? """, (teacher_id,))
+        row = cursor.fetchone()
+        if not row:
+            return None
+        res_discipline = from_json(row[0])
+        char = ""
+        for elem in range(len(res_discipline)):
+            char += "?"
+            if elem < len(res_discipline) - 1:
+                char += ","
+        cursor.execute(f""" SELECT COALESCE(avg(metr.taux_succes_moyen), 0) AS moyenne, count(distinct(aav.id_aav)) AS nb_aav, count(distinct(tent.id_apprenant)) AS nb_apprenants from aav left join metrique_qualite_aav metr on aav.id_aav = metr.id_aav 
+                       left join tentative tent on tent.id_aav_cible = aav.id_aav where aav.discipline IN ({char}) AND aav.is_active = 1 """,res_discipline)
         res = cursor.fetchone() 
-        return dict(res)
-        
+        result = dict(res)
+        result["disciplines"] = res_discipline
+        return result
 def get_discipline_stats( discipline_name: str)-> Optional[dict]:
     """
     Global discipline analysis: average success and resource coverage rate.
@@ -46,6 +52,6 @@ def get_ontology_cov( id_reference: int)-> Optional[dict]:
             char += "?"
             if elem < len(res_ids) - 1:
                 char += ","
-        cursor.execute(f""" select count(id_aav) as nb_aav, AVG(score_covering_ressources) as moyenne_covering from metrique_qualite_aav where id_aav IN ({char}) """, res_ids)
+        cursor.execute(f""" select count(id_aav) as nb_aav, COALESCE(AVG(score_covering_ressources)) as moyenne_covering from metrique_qualite_aav where id_aav IN ({char}) """, res_ids)
         res = cursor.fetchone()
         return dict(res)

@@ -3,9 +3,9 @@ from services.dashboard_data import get_teacher_stats, get_discipline_stats, get
 from schemas import OntologyCoverage, TeacherDashboard, DisciplineDashboard
 router = APIRouter()
 
-@router.get("/teachers/{id_enseignant}/{discipline}/overview", response_model=TeacherDashboard)
-def get_teacher_dashboard(id_enseignant: str, discipline: str):
-    stats = get_teacher_stats(id_enseignant, discipline)
+@router.get("/teachers/{id_enseignant}/overview", response_model=TeacherDashboard)
+def get_teacher_dashboard(id_enseignant: str):
+    stats = get_teacher_stats(id_enseignant)
     if not stats:
         raise HTTPException(status_code=404, detail=f"Aucune statistique trouvée pour l'enseignant {id_enseignant} en {discipline}")
     return stats
