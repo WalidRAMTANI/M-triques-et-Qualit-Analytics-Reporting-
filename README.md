@@ -51,7 +51,7 @@ Ce projet fournit des outils pour mesurer la progression des apprenants, détect
 Pour démarrer le serveur de développement :
 
 ```bash
-uvicorn main:app --reload
+uvicorn app.main:app --reload
 ```
 
 - **Documentation Swagger UI** : [http://127.0.0.1:8000/docs](http://127.0.0.1:8000/docs)
@@ -87,12 +87,16 @@ pytest
 
 ## pour lancer le server, il faut activer l'environnement virtuel et lancer la commande suivante :
 
-# python3 -m venv venv && source venv/bin/activate && pip install fastapi uvicorn pydantic pytest && pytest tests/ && uvicorn main:app --reload
+```bash
+python3 -m venv venv && source venv/bin/activate && pip install fastapi uvicorn pydantic pytest && pytest tests/ && uvicorn app.main:app --reload
+```
 
 ## 📝 Note Technique : Génération PDF
 
 Le projet inclut une implémentation originale dans `services/report_generator.py` permettant de générer des fichiers PDF valides directement au format binaire, sans dépendance à des librairies externes comme ReportLab ou FPDF.
 
 ---
+
+python3 -m venv venv && source venv/bin/activate && pip install fastapi uvicorn pydantic sqlalchemy pytest && pytest tests/ && uvicorn app.main:app --reload
 
 _Développé par le Groupe 7 dans le cadre de l'unité d'enseignement Métriques et Qualité._

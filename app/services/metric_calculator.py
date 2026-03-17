@@ -212,11 +212,11 @@ def get_all_metrics(filters: dict) -> List :
         ecart_type_scores = filters.get("ecart_type_scores") if filters.get("ecart_type_scores") is not None else 0
         print(score_covering_ressources, taux_succes_moyen, nb_tentatives_total, nb_apprenants_distincts, ecart_type_scores)
         #score_covering_ressources, taux_succes_moyen, est_utilisable, nb_tentatives_total, nb_apprenants_distincts, ecart_type_scores
-        query = "SELECT * from metrique_qualite_aav where score_covering_ressources >= ? and taux_succes_moyen >= ? and taux_succes_moyen >= ? and nb_tentatives_total >= ? and nb_apprenants_distincts >= ? and ecart_type_scores >= ?"
+        query = "SELECT * from metrique_qualite_aav where score_covering_ressources >= ? and taux_succes_moyen >= ? and nb_tentatives_total >= ? and nb_apprenants_distincts >= ? and ecart_type_scores >= ?"
         
-        cursor.execute(query, (score_covering_ressources, taux_succes_moyen, taux_succes_moyen, nb_tentatives_total, nb_apprenants_distincts, ecart_type_scores,))
+        cursor.execute(query, (score_covering_ressources, taux_succes_moyen, nb_tentatives_total, nb_apprenants_distincts, ecart_type_scores,))
         row = cursor.fetchall()
         print(row)
-        return [MetriqueQualiteAAV(**r) for r in row] 
+        return [MetriqueQualiteAAV(**dict(r)) for r in row] 
 
     
