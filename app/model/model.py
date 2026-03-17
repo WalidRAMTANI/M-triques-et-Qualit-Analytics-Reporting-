@@ -1,5 +1,4 @@
-
-from pydantic import BaseModel, Field, field_validator, model_validator
+from pydantic import BaseModel, Field, field_validator, model_validator, ConfigDict
 from typing import Optional, List, Literal, Union
 from enum import Enum
 from datetime import datetime
@@ -34,55 +33,22 @@ class NiveauDifficulte(str, Enum):
 # ============================================
 
 class RegleProgression(BaseModel):
-    """
-    Règles déterminant comment un apprenant progresse sur un AAV.
-
-    Exemple:
-        - seuil_succes: 0.7 (70% pour réussir)
-        - nombre_succes_consecutifs: 3 (3 réussites d'affilée = maîtrise)
-    """
-    seuil_succes: float = Field(
-        default=0.7,
-        ge=0.0,
-        le=1.0,
-        description="Score minimum pour considérer une tentative comme réussie"
-    )
-    maitrise_requise: float = Field(
-        default=1.0,
-        ge=0.0,
-        le=1.0,
-        description="Niveau de maîtrise à atteindre pour valider l'AAV"
-    )
-    nombre_succes_consecutifs: int = Field(
-        default=1,
-        ge=1,
-        description="Nombre de réussites consécutives requises"
-    )
-    nombre_jugements_pairs_requis: int = Field(
-        default=3,
-        ge=1,
-        description="Pour évaluation par les pairs: jugements nécessaires"
-    )
-    tolerance_jugement: float = Field(
-        default=0.2,
-        ge=0.0,
-        le=1.0,
-        description="Marge de tolérance pour les évaluations par pairs"
-    )
+    model_config = ConfigDict(from_attributes=True)
+    seuil_succes: float = Field(default=0.7, ge=0.0, le=1.0)
+    maitrise_requise: float = Field(default=1.0, ge=0.0, le=1.0)
+    nombre_succes_consecutifs: int = Field(default=1, ge=1)
+    nombre_jugements_pairs_requis: int = Field(default=3, ge=1)
+    tolerance_jugement: float = Field(default=0.2, ge=0.0, le=1.0)
 
 class AAVBase(BaseModel):
-    """Champs de base pour un AAV (création et mise à jour)."""
-    nom: str = Field(..., min_length=3, max_length=200, description="Nom technique de l'AAV")
-    libelle_integration: str = Field(
-        ...,
-        min_length=5,
-        description="Forme grammaticale pour insertion dans une phrase"
-    )
-    discipline: str = Field(..., min_length=2, description="Discipline (ex: Mathématiques)")
-    enseignement: str = Field(..., description="Enseignement spécifique (ex: Algèbre)")
+    model_config = ConfigDict(from_attributes=True)
+    nom: str = Field(..., min_length=3, max_length=200)
+    libelle_integration: str = Field(..., min_length=5)
+    discipline: str = Field(..., min_length=2)
+    enseignement: str = Field(..., min_length=2)
     type_aav: TypeAAV
-    description_markdown: str = Field(..., min_length=10, description="Description complète")
-    prerequis_ids: List[int] = Field(default_factory=list, description="IDs des AAV prérequis")
+    description_markdown: str = Field(..., min_length=10)
+    prerequis_ids: List[int] = Field(default_factory=list)
     prerequis_externes_codes: List[str] = Field(default_factory=list)
     code_prerequis_interdisciplinaire: Optional[str] = None
     type_evaluation: TypeEvaluationAAV
@@ -90,19 +56,15 @@ class AAVBase(BaseModel):
     @field_validator('libelle_integration')
     @classmethod
     def validate_libelle(cls, v: str) -> str:
-        """Vérifie que le libellé peut s'intégrer dans une phrase."""
-        phrase_test = f"Nous allons travailler {v}"
-        if len(phrase_test) > 250:
-            raise ValueError("Libellé trop long pour une phrase fluide")
+        if v and len(v) > 250:
+            raise ValueError("Libellé trop long")
         return v
 
 class AAVCreate(AAVBase):
-    """Modèle pour la création d'un AAV (POST)."""
-    id_aav: int = Field(..., gt=0, description="Identifiant unique de l'AAV")
+    id_aav: int = Field(..., gt=0)
     regles_progression: RegleProgression = Field(default_factory=RegleProgression)
 
 class AAVUpdate(BaseModel):
-    """Modèle pour la mise à jour partielle (PATCH). Tous les champs sont optionnels."""
     nom: Optional[str] = Field(None, min_length=3, max_length=200)
     libelle_integration: Optional[str] = None
     description_markdown: Optional[str] = None
@@ -110,30 +72,19 @@ class AAVUpdate(BaseModel):
     is_active: Optional[bool] = None
 
 class AAV(AAVBase):
-    """Modèle complet d'un AAV (réponse API)."""
     id_aav: int
     is_active: bool = True
     version: int = 1
     created_at: datetime
     updated_at: datetime
 
-    class Config:
-        """Configuration Pydantic V2."""
-        from_attributes = True  # Permet de créer depuis un objet SQLAlchemy/dict
-
-# ============================================
-# MODÈLES POUR LES RÉPONSES API
-# ============================================
-
 class ErrorResponse(BaseModel):
-    """Format standard pour les réponses d'erreur."""
-    error: str = Field(..., description="Type d'erreur")
-    message: str = Field(..., description="Message lisible par l'utilisateur")
-    details: Optional[dict] = Field(None, description="Détails techniques supplémentaires")
+    error: str
+    message: str
+    details: Optional[dict] = None
     timestamp: datetime = Field(default_factory=datetime.now)
 
 class PaginatedResponse(BaseModel):
-    """Format standard pour les réponses paginées."""
     items: List[dict]
     total: int
     page: int
@@ -143,7 +94,6 @@ class PaginatedResponse(BaseModel):
     has_previous: bool
 
 class SuccessResponse(BaseModel):
-    """Format standard pour les confirmations de succès."""
     success: bool = True
     message: str
     id: Optional[int] = None
@@ -151,10 +101,7 @@ class SuccessResponse(BaseModel):
 
 # ------------------------------------------------------------------------#
 class MetriqueQualiteAAV(BaseModel):
-    """
-    Modèle pour les métriques de qualité des AAV.
-    Représente une ligne de la table metrique_qualite_aav.
-    """
+    model_config = ConfigDict(from_attributes=True)
     id_metrique: Optional[int] = None
     id_aav: int
     score_covering_ressources: float
@@ -168,20 +115,17 @@ class MetriqueQualiteAAV(BaseModel):
     periode_fin: datetime
 
 class LearnerBase(BaseModel):
-    """Modèle de base pour un apprenant."""
+    model_config = ConfigDict(from_attributes=True)
     id_apprenant: int
     nom_utilisateur: str
     email: str
     date_inscription: datetime
     derniere_connexion: Optional[datetime] = None
-    est_actif: bool = True
+    is_active: bool = True
     ontologie_reference_id: Optional[int] = None
 
 class Rapport(BaseModel):
-    """
-    Model for reports.
-    Represents a row in the rapport_periodique table.
-    """
+    model_config = ConfigDict(from_attributes=True)
     id_rapport: Optional[int] = None
     type_rapport: str
     id_cible: Union[str, int]
@@ -189,23 +133,25 @@ class Rapport(BaseModel):
     periode_fin: Optional[datetime] = None
     format: str
     date_generation: datetime
-    contenu: str  # JSON data
+    contenu: str
     format_fichier: str
 
 class AlerteQualite(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
     id_alerte: int
     type_alerte: str
     id_cible: int
     nom_cible: str
     severite: str
     description: str
-    suggestions: list[str]
+    suggestions: List[str]
     date_detection: datetime
-    status: str
+    statut: str
 
-class Enseignant:
-    nom : str
+class Enseignant(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id_enseignant: Optional[int] = None
+    nom: str
     email: str
-    discipline : List[str]
-    id_enseignant : Optional[int] = None
-    date_creation : Optional[datetime] = None
+    discipline: List[str]
+    date_creation: Optional[datetime] = None

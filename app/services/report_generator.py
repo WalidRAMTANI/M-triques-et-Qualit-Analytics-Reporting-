@@ -1,21 +1,19 @@
 import base64
+from typing import List, Optional, Any
 from datetime import datetime
-from database import get_db_connection
-from services.metric_calculator import get_all_aavs, get_aav,calculer_couverture, calculer_taux_succes,determiner_utilisabilite, count_attempts, count_distinct_learners
-from database import to_json, RapportRepository
-from services.alert_detector import detecter_aavs_difficiles, detecter_aavs_fragiles,detecter_aavs_inutilises
+from database import get_db_session, AAVModel, TentativeModel, ApprenantModel, RapportRepository
+from services.metric_calculator import get_all_aavs, get_aav, calculer_couverture, calculer_taux_succes, determiner_utilisabilite, count_attempts, count_distinct_learners
+from database import to_json
+from services.alert_detector import detecter_aavs_difficiles, detecter_aavs_fragiles, detecter_aavs_inutilises
 
 from model.model import Rapport, LearnerBase
 from model.schemas import AAVComparaison, ApprenantComparaison, RapportGlobalResponse
 
 
 # helper for pdf
-# C'est ici qu'on génère notre PDF "à la main" (sans librairie externe).
-# Un fichier PDF n'est finalement qu'un gros fichier texte très structuré avec des "objets".
 def to_pdf(data_dict, title="Rapport"):
     text = f"{title}\n\n"
     
-    # Fonction récursive pour aplatir nos dictionnaires et listes en texte simple
     def format_dict(d, indent=0):
         res = ""
         prefix = " " * indent
@@ -23,7 +21,7 @@ def to_pdf(data_dict, title="Rapport"):
             for k, v in d.items():
                 if isinstance(v, (dict, list)):
                     res += f"{prefix}{k}:\n"
-                    res += format_dict(v, indent + 4) # On indente plus profond
+                    res += format_dict(v, indent + 4)
                 else:
                     res += f"{prefix}{k}: {v}\n"
         elif isinstance(d, list):
@@ -36,23 +34,15 @@ def to_pdf(data_dict, title="Rapport"):
         return res
     
     text += format_dict(data_dict)
-    
-    # Très important: on convertit en pur ASCII. Certains lecteurs PDF crashent
-    # si la police de base (Helvetica) reçoit des caractères Chelous ou des accents
     text = text.encode("ascii", "ignore").decode("ascii")
-    
-    # Dans la syntaxe PDF, les parenthèses () délimitent le texte, donc on doit échapper celles présentes
     text = text.replace('\\', '\\\\').replace('(', '\\(').replace(')', '\\)')
     lines = text.split('\n')
     
-    # Voici le "Content Stream" : les instructions de dessins PDF!
-    # BT = Begin Text, /F1 12 Tf = Font 1 Taille 12, Td = X,Y, TL = ligne spacing
     stream = "BT\n/F1 12 Tf\n50 800 Td\n15 TL\n"
-    for line in lines[:50]: # On limite à 1 page grossièrement
-        stream += f"({line}) Tj T*\n" # On dessine la ligne et on fait un retour chariot (T*)
+    for line in lines[:50]:
+        stream += f"({line}) Tj T*\n"
     stream += "ET"
     
-    # On prépare tous les "Objets" obligatoires du document (le catalogue, la page, la font...)
     obj1 = "<</Type /Catalog /Pages 2 0 R>>"
     obj2 = "<</Type /Pages /Kids [3 0 R] /Count 1>>"
     obj3 = "<</Type /Page /Parent 2 0 R /Resources <</Font <</F1 4 0 R>>>> /MediaBox [0 0 595 842] /Contents 5 0 R>>"
@@ -60,121 +50,98 @@ def to_pdf(data_dict, title="Rapport"):
     obj5 = f"<</Length {len(stream)}>>\nstream\n{stream}\nendstream"
     
     objects = [obj1, obj2, obj3, obj4, obj5]
-    
-    # On commence à construire le binaire du fichier
     pdf_content = b"%PDF-1.4\n"
     offsets = []
     
-    # On écrit chaque objet et on garde une trace exacte de son "offset" (la ligne d'octet où il commence). 
     for i, obj in enumerate(objects):
         offsets.append(len(pdf_content))
         pdf_content += f"{i+1} 0 obj\n{obj}\nendobj\n".encode('ascii')
         
-    # Le système xref (cross-reference) est indispensable. C'est l'index que le logiciel PDF lit en premier.
     xref_pos = len(pdf_content)
     pdf_content += b"xref\n0 6\n0000000000 65535 f \n"
     for offset in offsets:
         pdf_content += f"{offset:010d} 00000 n \n".encode('ascii')
         
-    # Fin du fichier, on dit au lecteur où trouver la xref table
     pdf_content += f"trailer\n<</Size 6 /Root 1 0 R>>\nstartxref\n{xref_pos}\n%%EOF\n".encode('ascii')
-    
-    # On encode cette bouillie binaire en Base64 pour que ça rentre gentillement dans notre colonne BDD de type String.
     return base64.b64encode(pdf_content).decode('ascii')
 
-# helper for csv
+
 def generate_csv_string(data, field):
     import csv, io
     output = io.StringIO()
     writer = csv.DictWriter(output, fieldnames=field)
-    
-    # On écrit d'abord la première ligne qui contient le nom des colonnes
     writer.writeheader()
     
-    # Petite sécurité: csv.DictWriter a absolument besoin d'une LISTE DE DICTIONNAIRES.
-    
-    # Cas 1: L'utilisateur a passé juste un seul dictionnaire (une seule ligne), on s'assure d'en faire une liste
     if isinstance(data, dict):
         data = [data]
-        
-    # Cas 2: L'utilisateur a passé une liste toute simple (ex: [1, "Maths", 80]). 
-    # Pour pas crasher, on la "zippe" automatiquement avec les `fieldnames` pour créer le dictionnaire manquant !
     elif isinstance(data, list) and len(data) > 0 and not isinstance(data[0], dict):
-        # On regroupe chaque valeur avec sa colonne
         if len(data) == len(field):
             data = [dict(zip(field, data))]
     
     writer.writerows(data)
-    
-    # On renvoie tout sous forme d'une belle phrase texte au lieu d'un fichier pur
     return output.getvalue()
 
 
-def get_student(student_id: int) -> LearnerBase:
-    """Retrieves a learner by their ID. Returns None if not found."""
-    with get_db_connection() as conn:
-        cursor = conn.cursor()
-        cursor.execute("SELECT * FROM apprenant WHERE id_apprenant = ?", (student_id,))
-        row = cursor.fetchone()
-        if row:
+def get_student(student_id: int) -> Optional[dict]:
+    with get_db_session() as db:
+        app = db.get(ApprenantModel, student_id)
+        if app:
             return {
-                "id_apprenant": row["id_apprenant"],
-                "nom": row["nom_utilisateur"],
-                "email": row["email"],
-                "date_inscription": row["date_inscription"],
-                "derniere_connexion": row["derniere_connexion"]
+                "id_apprenant": app["id_apprenant"],
+                "nom": app["nom_utilisateur"],
+                "email": app["email"],
+                "date_inscription": app["date_inscription"],
+                "derniere_connexion": app["derniere_connexion"]
             }
         return None
 
-def collect_data_for_aav(id_aav: int,format: str) -> AAVComparaison:
-    """
-    Collects all necessary data for a given AAV.
-    """
+def collect_data_for_aav(id_aav: int, format: str) -> any:
     aav = get_aav(id_aav)
     if not aav:
-
         return None
-    if format == "csv":
-        return generate_csv_string([aav["id_aav"], aav["nom"], calculer_taux_succes(id_aav), calculer_couverture(id_aav), determiner_utilisabilite(id_aav), count_attempts(id_aav), count_distinct_learners(id_aav)], ["id_aav", "nom", "taux_succes", "couverture", "utilisabilite", "nb_tentatives", "nb_apprenants"])
-    elif format == "pdf":
-        data_dict = {"id_aav": aav["id_aav"], "nom": aav["nom"], "taux_succes": calculer_taux_succes(id_aav), "couverture": calculer_couverture(id_aav), "utilisabilite": determiner_utilisabilite(id_aav), "nb_tentatives": count_attempts(id_aav), "nb_apprenants": count_distinct_learners(id_aav)}
-        return to_pdf(data_dict, title=f"Rapport AAV - {aav['nom']}")
-    elif format == "json":
-        return {"id_aav": aav["id_aav"],
-        "nom": aav["nom"],
-        "taux_succes": calculer_taux_succes(id_aav),
-        "couverture": calculer_couverture(id_aav),
-        "utilisabilite": determiner_utilisabilite(id_aav),
-        "nb_tentatives": count_attempts(id_aav),
+    
+    data_dict = {
+        "id_aav": aav["id_aav"], 
+        "nom": aav["nom"], 
+        "taux_succes": calculer_taux_succes(id_aav), 
+        "couverture": calculer_couverture(id_aav), 
+        "utilisabilite": determiner_utilisabilite(id_aav), 
+        "nb_tentatives": count_attempts(id_aav), 
         "nb_apprenants": count_distinct_learners(id_aav)
     }
+
+    if format == "csv":
+        return generate_csv_string(data_dict, ["id_aav", "nom", "taux_succes", "couverture", "utilisabilite", "nb_tentatives", "nb_apprenants"])
+    elif format == "pdf":
+        return to_pdf(data_dict, title=f"Rapport AAV - {aav['nom']}")
+    elif format == "json":
+        return data_dict
     else:
         raise ValueError(f"Format de rapport inconnu : {format}")
-    
-def collect_data_for_student(id_cible: int,format: str) -> dict:
-    """
-    Collects all necessary data for a given learner.
-    """
+
+def collect_data_for_student(id_cible: int, format: str) -> any:
     student = get_student(id_cible)
     if not student:
-
         return None
-    with get_db_connection() as conn:
-        cursor = conn.cursor()
-        cursor.execute("""
-            SELECT t.id_aav_cible as id_aav, a.nom, t.score_obtenu, t.date_tentative
-            FROM tentative t
-            JOIN aav a ON t.id_aav_cible = a.id_aav
-            WHERE t.id_apprenant = ?
-            ORDER BY t.date_tentative DESC
-        """, (id_cible,))
-        tentatives = [dict(row) for row in cursor.fetchall()]
+        
+    with get_db_session() as db:
+        results = db.query(
+            TentativeModel.id_aav_cible.label("id_aav"),
+            AAVModel.nom.label("nom"),
+            TentativeModel.score_obtenu.label("score_obtenu"),
+            TentativeModel.date_tentative.label("date_tentative")
+        ).join(AAVModel, TentativeModel.id_aav_cible == AAVModel.id_aav).filter(
+            TentativeModel.id_apprenant == id_cible
+        ).order_by(TentativeModel.date_tentative.desc()).all()
+        
+        tentatives = [dict(r._mapping) for r in results]
+
     if format == "csv":
         flat_data = []
         for t in tentatives:
             flat_data.append({
-                "id_apprenant": student["id_apprenant"] if isinstance(student, dict) else student.id_apprenant,
-                "nom_apprenant": student["nom"] if isinstance(student, dict) else student.nom,
+                "id_apprenant": student["id_apprenant"],
+                "nom_apprenant": student["nom"],
                 "id_aav": t.get("id_aav"),
                 "nom_aav": t.get("nom"),
                 "score_obtenu": t.get("score_obtenu"),
@@ -182,26 +149,20 @@ def collect_data_for_student(id_cible: int,format: str) -> dict:
             })
         return generate_csv_string(flat_data, ["id_apprenant", "nom_apprenant", "id_aav", "nom_aav", "score_obtenu", "date_tentative"])
     elif format == "pdf":
-        nom_app = student["nom"] if isinstance(student, dict) else student.nom
-        id_app = student["id_apprenant"] if isinstance(student, dict) else student.id_apprenant
-        return to_pdf(tentatives, title=f"Rapport Apprenant - {nom_app} ({id_app})")
+        return to_pdf(tentatives, title=f"Rapport Apprenant - {student['nom']} ({student['id_apprenant']})")
     elif format == "json":
         return {
-            "id_apprenant": student["id_apprenant"] if isinstance(student, dict) else student.id_apprenant,
-            "nom": student["nom"] if isinstance(student, dict) else student.nom,
+            "id_apprenant": student["id_apprenant"],
+            "nom": student["nom"],
             "nb_tentatives": len(tentatives),
             "tentatives": tentatives,
         }
     else:
         raise ValueError(f"Format de rapport inconnu : {format}")
-    
 
-def collect_data_for_discipline(id_cible: str,format: str) -> dict:
-    """
-    Collects all necessary data for a given discipline.
-    """
+def collect_data_for_discipline(id_cible: str, format: str) -> any:
     aavs = [aav for aav in get_all_aavs() if aav["discipline"] == id_cible]
-    aav_ids = {aav["id_aav"] for aav in aavs}  
+    aav_ids = {aav["id_aav"] for aav in aavs}
 
     results = []
     for aav in aavs:
@@ -212,6 +173,7 @@ def collect_data_for_discipline(id_cible: str,format: str) -> dict:
             "couverture": calculer_couverture(aav["id_aav"]),
             "utilisabilite": determiner_utilisabilite(aav["id_aav"])
         })
+
     if format == "csv":
         difficiles_ids = {a.id_aav for a in detecter_aavs_difficiles() if a.id_aav in aav_ids}
         fragiles_ids = {a.id_aav for a in detecter_aavs_fragiles() if a.id_aav in aav_ids}
@@ -234,8 +196,8 @@ def collect_data_for_discipline(id_cible: str,format: str) -> dict:
         columns = ["discipline", "id_aav", "nom", "taux_succes", "couverture", 
                    "utilisabilite", "alerte_difficile", "alerte_fragile", "alerte_inutilise"]
         return generate_csv_string(flat_data, columns)
-    elif format == "pdf":
-        data_dict = {
+    elif format == "pdf" or format == "json":
+        data_to_return = {
             "discipline": id_cible,
             "nb_aavs": len(results),
             "aavs": results,
@@ -245,27 +207,13 @@ def collect_data_for_discipline(id_cible: str,format: str) -> dict:
                 "inutilises": [a.model_dump() for a in detecter_aavs_inutilises() if a.id_aav in aav_ids]
             }
         }
-        return to_pdf(data_dict, title=f"Rapport Discipline - {id_cible}")
-    elif format == "json":
-        return {
-            "discipline": id_cible,
-            "aavs": results,
-            "nb_aavs": len(results),
-            "alertes": {
-                "difficiles": [a.model_dump() for a in detecter_aavs_difficiles() if a.id_aav in aav_ids],
-                "fragiles":   [a.model_dump() for a in detecter_aavs_fragiles()   if a.id_aav in aav_ids],
-                "inutilises": [a.model_dump() for a in detecter_aavs_inutilises() if a.id_aav in aav_ids]
-            }
-        }
+        if format == "pdf":
+            return to_pdf(data_to_return, title=f"Rapport Discipline - {id_cible}")
+        return data_to_return
     else:
         raise ValueError(f"Format de rapport inconnu : {format}")
 
 def generer_rapport_personnalise(type, id_cible, debut, fin, format):
-    """
-    Generate a personalized report based on the type of report, id_cible, date_debut, date_fin and format.
-    Validates that id_cible exists before generating the report.
-    Returns None if the target is not found.
-    """
     if type == "aav":
         if not get_aav(int(id_cible)):
             return None
@@ -275,7 +223,6 @@ def generer_rapport_personnalise(type, id_cible, debut, fin, format):
             return None
         data = collect_data_for_student(int(id_cible), format)
     elif type == "discipline":
-        # Check that at least one AAV exists for this discipline
         aavs = [aav for aav in get_all_aavs() if aav["discipline"] == id_cible]
         if not aavs:
             return None
@@ -298,11 +245,8 @@ def generer_rapport_personnalise(type, id_cible, debut, fin, format):
     )
     return RapportRepository().create(rapport)
 
-
 def generer_rapport_global() -> RapportGlobalResponse:
-    """Generate a global report of the ontology: metrics of all AAVs + alerts."""
     aavs = get_all_aavs()
-
     aavs_data = [
         {
             "id_aav": aav["id_aav"],
