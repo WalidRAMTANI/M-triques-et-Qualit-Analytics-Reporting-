@@ -3,31 +3,35 @@ from typing import List, Optional
 from database import get_db_session, ApprenantModel, StatutApprentissageModel, MetriqueQualiteAAVModel
 from services.metric_calculator import calculer_taux_succes, get_all_aavs, count_attempts, get_all_attempts_for_aav
 from model.schemas import AAVDifficile, AAVInutilise, AAVFragile, ApprenantRisque
-from sqlalchemy import func
+from sqlalchemy import text
 
 def get_apprenants_ontologie(ontologie_id: int) -> List[ApprenantModel]:
     """Retrieves all learners with a given ontology."""
-    with get_db_session() as db:
-        return db.query(ApprenantModel).filter(ApprenantModel.ontologie_reference_id == ontologie_id).all()
+    with get_db_connection() as session:
+        result = session.execute(
+            text("SELECT * FROM apprenant WHERE ontologie_reference_id = :ontologie_id"),
+            {"ontologie_id": ontologie_id}
+        )
+        return [dict(row._mapping) for row in result.fetchall()]
 
 
 def count_aavs_bloques(apprenant_id: int) -> int:
     """Counts the number of non-mastered AAVs for a learner."""
-    with get_db_session() as db:
-        return db.query(StatutApprentissageModel).filter(
-            StatutApprentissageModel.id_apprenant == apprenant_id,
-            StatutApprentissageModel.niveau_maitrise < 1
-        ).count()
+    with get_db_connection() as session:
+        return session.execute(
+            text("SELECT COUNT(*) FROM statut_apprentissage WHERE id_apprenant = :apprenant_id AND niveau_maitrise < 1"),
+            {"apprenant_id": apprenant_id}
+        ).scalar() or 0
 
 
 def calculer_progression(apprenant_id: int) -> float:
     """Calculates the average progression of a learner (average mastery level)."""
-    with get_db_session() as db:
-        result = db.query(func.avg(StatutApprentissageModel.niveau_maitrise)).filter(
-            StatutApprentissageModel.id_apprenant == apprenant_id
+    with get_db_connection() as session:
+        result = session.execute(
+            text("SELECT AVG(niveau_maitrise) FROM statut_apprentissage WHERE id_apprenant = :apprenant_id"),
+            {"apprenant_id": apprenant_id}
         ).scalar()
         return float(result) if result is not None else 0.0
-
 
 # ==============================================================
 # FONCTIONS PRINCIPALES — Détection des alertes

@@ -1,66 +1,91 @@
 import statistics
 from typing import List, Optional
 from datetime import datetime
-from database import get_db_session, from_json, AAVModel, TentativeModel, MetriqueQualiteAAVModel, MetriqueQualiteAAVRepository
-from sqlalchemy import func
-
+from database import get_db_connection, from_json
+from model.model import MetriqueQualiteAAV
+from database import MetriqueQualiteAAVRepository
+from sqlalchemy import text
 
 def count_exercices(aav_id: int) -> int:
-    """Counts the number of exercises for an AAV."""
-    with get_db_session() as db:
-        aav = db.get(AAVModel, aav_id)
-        if not aav or not aav["ids_exercices"]:
+    """Counts the number of exercises for an AAV (stored as JSON in the ids_exercices column)."""
+    with get_db_connection() as session:
+        row = session.execute(
+            text("SELECT ids_exercices FROM aav WHERE id_aav = :aav_id"),
+            {"aav_id": aav_id}
+        ).fetchone()
+        if not row or not row._mapping["ids_exercices"]:
             return 0
-        return len(aav["ids_exercices"]) if isinstance(aav["ids_exercices"], list) else 0
+        ids = from_json(row._mapping["ids_exercices"])
+        return len(ids) if ids else 0
 
 
 def count_prompts(aav_id: int) -> int:
-    """Counts the number of prompts for an AAV."""
-    with get_db_session() as db:
-        aav = db.get(AAVModel, aav_id)
-        if not aav or not aav["prompts_fabrication_ids"]:
+    """Counts the number of prompts for an AAV (stored as JSON in prompts_fabrication_ids)."""
+    with get_db_connection() as session:
+        row = session.execute(
+            text("SELECT prompts_fabrication_ids FROM aav WHERE id_aav = :aav_id"),
+            {"aav_id": aav_id}
+        ).fetchone()
+        if not row or not row._mapping["prompts_fabrication_ids"]:
             return 0
-        return len(aav["prompts_fabrication_ids"]) if isinstance(aav["prompts_fabrication_ids"], list) else 0
+        ids = from_json(row._mapping["prompts_fabrication_ids"])
+        return len(ids) if ids else 0
 
 
 def diversity_evaluation_types(aav_id: int) -> int:
     """Counts the number of distinct evaluation types used for this AAV."""
-    with get_db_session() as db:
-        aav = db.get(AAVModel, aav_id)
-        if not aav:
-            return 0
-        return 1 if aav["type_evaluation"] else 0
+    with get_db_connection() as session:
+        return session.execute(
+            text("SELECT COUNT(DISTINCT type_evaluation) FROM aav WHERE id_aav = :aav_id"),
+            {"aav_id": aav_id}
+        ).scalar() or 0
 
 
 def get_all_attempts_for_aav(aav_id: int) -> List[TentativeModel]:
     """Retrieves all attempts for a given AAV."""
-    with get_db_session() as db:
-        return db.query(TentativeModel).filter(TentativeModel.id_aav_cible == aav_id).all()
+    with get_db_connection() as session:
+        result = session.execute(
+            text("SELECT * FROM tentative WHERE id_aav_cible = :aav_id"),
+            {"aav_id": aav_id}
+        )
+        return [dict(row._mapping) for row in result.fetchall()]
 
 
 def get_aav(aav_id: int) -> Optional[AAVModel]:
     """Retrieves an AAV by its ID. Returns None if not found."""
-    with get_db_session() as db:
-        return db.get(AAVModel, aav_id)
+    with get_db_connection() as session:
+        row = session.execute(
+            text("SELECT * FROM aav WHERE id_aav = :aav_id"),
+            {"aav_id": aav_id}
+        ).fetchone()
+        return dict(row._mapping) if row else None
 
 
 def get_all_aavs() -> List[AAVModel]:
     """Retrieves all active AAVs."""
-    with get_db_session() as db:
-        return db.query(AAVModel).filter(AAVModel.is_active == True).all()
+    with get_db_connection() as session:
+        result = session.execute(
+            text("SELECT * FROM aav WHERE is_active = 1")
+        )
+        return [dict(row._mapping) for row in result.fetchall()]
 
 
 def count_attempts(aav_id: int) -> int:
     """Counts the total number of attempts for an AAV."""
-    with get_db_session() as db:
-        return db.query(TentativeModel).filter(TentativeModel.id_aav_cible == aav_id).count()
+    with get_db_connection() as session:
+        return session.execute(
+            text("SELECT COUNT(*) FROM tentative WHERE id_aav_cible = :aav_id"),
+            {"aav_id": aav_id}
+        ).scalar() or 0
 
 
 def count_distinct_learners(aav_id: int) -> int:
     """Counts the number of distinct learners who attempted this AAV."""
-    with get_db_session() as db:
-        return db.query(func.count(func.distinct(TentativeModel.id_apprenant))).filter(TentativeModel.id_aav_cible == aav_id).scalar()
-
+    with get_db_connection() as session:
+        return session.execute(
+            text("SELECT COUNT(DISTINCT id_apprenant) FROM tentative WHERE id_aav_cible = :aav_id"),
+            {"aav_id": aav_id}
+        ).scalar() or 0
 
 def calculer_couverture(aav_id: int) -> float:
     score = 0.0
@@ -125,33 +150,54 @@ def calculer_metriques_aav(id_aav: int) -> MetriqueQualiteAAVModel:
     )
     return MetriqueQualiteAAVRepository().create(metrique)
 
+def get_metriques_by_aav(id_aav: int) -> Optional[dict]:
+    """
+    Retrieves the most recent quality metrics for a specific AAV.
+    Returns a dictionary of columns or None if not found.
+    """
+    with get_db_connection() as session:
+        row = session.execute(
+            text("SELECT * FROM metrique_qualite_aav WHERE id_aav = :id_aav"),
+            {"id_aav": id_aav}
+        ).fetchone()
+        return dict(row._mapping) if row else None
 
-def get_metriques_by_aav(id_aav: int) -> Optional[MetriqueQualiteAAVModel]:
-    """Retrieves the most recent quality metrics for a specific AAV."""
-    with get_db_session() as db:
-        return db.query(MetriqueQualiteAAVModel).filter(MetriqueQualiteAAVModel.id_aav == id_aav).order_by(MetriqueQualiteAAVModel.date_calcul.desc()).first()
+
+def get_history(id_aav: int) -> Optional[List[dict]]:
+    """
+    Retrieves the full history of calculated metrics for a specific AAV,
+    sorted by calculation date (most recent first).
+    """
+    with get_db_connection() as session:
+        rows = session.execute(
+            text("SELECT * FROM metrique_qualite_aav WHERE id_aav = :id_aav ORDER BY date_calcul DESC"),
+            {"id_aav": id_aav}
+        ).fetchall()
+        return [dict(r._mapping) for r in rows]
 
 
-def get_history(id_aav: int) -> List[MetriqueQualiteAAVModel]:
-    """Retrieves the full history of calculated metrics for a specific AAV."""
-    with get_db_session() as db:
-        return db.query(MetriqueQualiteAAVModel).filter(MetriqueQualiteAAVModel.id_aav == id_aav).order_by(MetriqueQualiteAAVModel.date_calcul.desc()).all()
+def get_all_metrics(filters: dict) -> List:
+    """
+    Retrieves the latest metrics for all AAVs in the database, with optional filters.
+    """
+    params = {
+        "score_covering_ressources": filters.get("score_covering_ressources") or 0,
+        "taux_succes_moyen":         filters.get("taux_succes_moyen")         or 0,
+        "nb_tentatives_total":       filters.get("nb_tentatives_total")       or 0,
+        "nb_apprenants_distincts":   filters.get("nb_apprenants_distincts")   or 0,
+        "ecart_type_scores":         filters.get("ecart_type_scores")         or 0,
+    }
 
-
-def get_all_metrics(filters: dict) -> List[MetriqueQualiteAAVModel]:
-    """Retrieves the latest metrics for all AAVs in the database, with optional filters."""
-    with get_db_session() as db:
-        query = db.query(MetriqueQualiteAAVModel)
-        
-        if filters.get("score_covering_ressources") is not None:
-            query = query.filter(MetriqueQualiteAAVModel.score_covering_ressources >= filters["score_covering_ressources"])
-        if filters.get("taux_succes_moyen") is not None:
-            query = query.filter(MetriqueQualiteAAVModel.taux_succes_moyen >= filters["taux_succes_moyen"])
-        if filters.get("nb_tentatives_total") is not None:
-            query = query.filter(MetriqueQualiteAAVModel.nb_tentatives_total >= filters["nb_tentatives_total"])
-        if filters.get("nb_apprenants_distincts") is not None:
-            query = query.filter(MetriqueQualiteAAVModel.nb_apprenants_distincts >= filters["nb_apprenants_distincts"])
-        if filters.get("ecart_type_scores") is not None:
-            query = query.filter(MetriqueQualiteAAVModel.ecart_type_scores >= filters["ecart_type_scores"])
-            
-        return query.all()
+    with get_db_connection() as session:
+        rows = session.execute(
+            text("""
+                SELECT * FROM metrique_qualite_aav
+                WHERE score_covering_ressources >= :score_covering_ressources
+                AND   taux_succes_moyen         >= :taux_succes_moyen
+                AND   nb_tentatives_total       >= :nb_tentatives_total
+                AND   nb_apprenants_distincts   >= :nb_apprenants_distincts
+                AND   ecart_type_scores         >= :ecart_type_scores
+            """),
+            params
+        ).fetchall()
+        return [MetriqueQualiteAAV(**dict(r._mapping)) for r in rows]
