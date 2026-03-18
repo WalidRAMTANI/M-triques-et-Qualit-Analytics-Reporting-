@@ -12,33 +12,6 @@ from datetime import datetime
 # HELPERS — interface SQLAlchemy
 # ==============================================================
 
-<<<<<<< HEAD
-def make_session_mock(get_return=None, query_return=None, count_return=None, scalar_return=None, first_return=None):
-    session = MagicMock()
-    session.__enter__.return_value = session
-    session.__exit__.return_value = False
-    
-    if get_return is not None:
-        session.get.return_value = get_return
-        
-    query = MagicMock()
-    session.query.return_value = query
-    query.filter.return_value = query
-    query.order_by.return_value = query
-    query.offset.return_value = query
-    query.limit.return_value = query
-    
-    if query_return is not None:
-        query.all.return_value = query_return
-    if count_return is not None:
-        query.count.return_value = count_return
-    if scalar_return is not None:
-        query.scalar.return_value = scalar_return
-    if first_return is not None:
-        query.first.return_value = first_return
-        
-    return session
-=======
 def make_row_mock(data: dict):
     """Crée un mock de ligne SQLAlchemy avec ._mapping."""
     row = MagicMock()
@@ -65,7 +38,6 @@ def make_session_mock(scalar=None, fetchone=None, fetchall=None):
     session.__exit__ = MagicMock(return_value=False)
     session.execute.return_value = result
     return session, result
->>>>>>> my-work
 
 
 # ==============================================================
@@ -74,58 +46,35 @@ def make_session_mock(scalar=None, fetchone=None, fetchall=None):
 
 class TestCountExercices:
 
-<<<<<<< HEAD
-    @patch("services.metric_calculator.get_db_session")
-    def test_aav_1_deux_exercices(self, mock_db):
-        """AAV 1 a ids_exercices = [101, 102] → 2."""
-        aav = {"id_aav": 1, "ids_exercices": [101, 102]}
-        mock_db.return_value = make_session_mock(get_return=aav)
-=======
     @patch("services.metric_calculator.from_json")
     @patch("services.metric_calculator.get_db_connection")
     def test_aav_1_deux_exercices(self, mock_db, mock_json):
         session, _ = make_session_mock(fetchone={"ids_exercices": "[101, 102]"})
         mock_db.return_value = session
         mock_json.return_value = [101, 102]
->>>>>>> my-work
 
         from services.metric_calculator import count_exercices
         assert count_exercices(1) == 2
 
-<<<<<<< HEAD
-    @patch("services.metric_calculator.get_db_session")
-    def test_aav_inexistant_retourne_zero(self, mock_db):
-        mock_db.return_value = make_session_mock(get_return=None)
-=======
     @patch("services.metric_calculator.from_json")
     @patch("services.metric_calculator.get_db_connection")
     def test_aav_inexistant_retourne_zero(self, mock_db, mock_json):
         session, result = make_session_mock()
         result.fetchone.return_value = None
         mock_db.return_value = session
->>>>>>> my-work
 
         from services.metric_calculator import count_exercices
         assert count_exercices(999) == 0
 
-<<<<<<< HEAD
-    @patch("services.metric_calculator.get_db_session")
-    def test_ids_exercices_null_retourne_zero(self, mock_db):
-        aav = {"id_aav": 5, "ids_exercices": None}
-        mock_db.return_value = make_session_mock(get_return=aav)
-=======
     @patch("services.metric_calculator.from_json")
     @patch("services.metric_calculator.get_db_connection")
     def test_ids_exercices_null_retourne_zero(self, mock_db, mock_json):
         session, _ = make_session_mock(fetchone={"ids_exercices": None})
         mock_db.return_value = session
->>>>>>> my-work
 
         from services.metric_calculator import count_exercices
         assert count_exercices(5) == 0
 
-<<<<<<< HEAD
-=======
     @patch("services.metric_calculator.from_json")
     @patch("services.metric_calculator.get_db_connection")
     def test_aav_composite_19_six_exercices(self, mock_db, mock_json):
@@ -136,7 +85,6 @@ class TestCountExercices:
         from services.metric_calculator import count_exercices
         assert count_exercices(19) == 6
 
->>>>>>> my-work
 
 # ==============================================================
 # TESTS — count_prompts
@@ -144,42 +92,26 @@ class TestCountExercices:
 
 class TestCountPrompts:
 
-<<<<<<< HEAD
-    @patch("services.metric_calculator.get_db_session")
-    def test_aav_1_un_prompt(self, mock_db):
-        """AAV 1 a prompts_fabrication_ids = [1] → 1."""
-        aav = {"id_aav": 1, "prompts_fabrication_ids": [1]}
-        mock_db.return_value = make_session_mock(get_return=aav)
-=======
     @patch("services.metric_calculator.from_json")
     @patch("services.metric_calculator.get_db_connection")
     def test_aav_1_un_prompt(self, mock_db, mock_json):
         session, _ = make_session_mock(fetchone={"prompts_fabrication_ids": "[1]"})
         mock_db.return_value = session
         mock_json.return_value = [1]
->>>>>>> my-work
 
         from services.metric_calculator import count_prompts
         assert count_prompts(1) == 1
 
-<<<<<<< HEAD
-    @patch("services.metric_calculator.get_db_session")
-    def test_aav_inexistant_retourne_zero(self, mock_db):
-        mock_db.return_value = make_session_mock(get_return=None)
-=======
     @patch("services.metric_calculator.from_json")
     @patch("services.metric_calculator.get_db_connection")
     def test_aav_inexistant_retourne_zero(self, mock_db, mock_json):
         session, result = make_session_mock()
         result.fetchone.return_value = None
         mock_db.return_value = session
->>>>>>> my-work
 
         from services.metric_calculator import count_prompts
         assert count_prompts(999) == 0
 
-<<<<<<< HEAD
-=======
     @patch("services.metric_calculator.from_json")
     @patch("services.metric_calculator.get_db_connection")
     def test_prompts_null_retourne_zero(self, mock_db, mock_json):
@@ -199,7 +131,6 @@ class TestCountPrompts:
         from services.metric_calculator import count_prompts
         assert count_prompts(19) == 3
 
->>>>>>> my-work
 
 # ==============================================================
 # TESTS — diversity_evaluation_types
@@ -207,22 +138,14 @@ class TestCountPrompts:
 
 class TestDiversityEvaluationTypes:
 
-    @patch("services.metric_calculator.get_db_session")
+    @patch("services.metric_calculator.get_db_connection")
     def test_aav_avec_un_type(self, mock_db):
-<<<<<<< HEAD
-        """AAV 1 a un seul type: 'Calcul Automatisé' → 1."""
-        aav = {"id_aav": 1, "type_evaluation": "Calcul Automatisé"}
-        mock_db.return_value = make_session_mock(get_return=aav)
-=======
         session, _ = make_session_mock(scalar=1)
         mock_db.return_value = session
->>>>>>> my-work
 
         from services.metric_calculator import diversity_evaluation_types
         assert diversity_evaluation_types(1) == 1
 
-<<<<<<< HEAD
-=======
     @patch("services.metric_calculator.get_db_connection")
     def test_aav_inexistant_retourne_zero(self, mock_db):
         session, _ = make_session_mock(scalar=None)
@@ -240,7 +163,6 @@ class TestDiversityEvaluationTypes:
         result = diversity_evaluation_types(8)
         assert isinstance(result, int)
 
->>>>>>> my-work
 
 # ==============================================================
 # TESTS — get_all_attempts_for_aav
@@ -248,18 +170,14 @@ class TestDiversityEvaluationTypes:
 
 class TestGetAllAttemptsForAAV:
 
-    @patch("services.metric_calculator.get_db_session")
+    @patch("services.metric_calculator.get_db_connection")
     def test_aav_1_retourne_six_tentatives(self, mock_db):
         rows = [
             {"id": i, "id_aav_cible": 1, "score_obtenu": s}
             for i, s in enumerate([0.70, 0.80, 0.85, 0.80, 0.90, 1.00], 1)
         ]
-<<<<<<< HEAD
-        mock_db.return_value = make_session_mock(query_return=rows)
-=======
         session, _ = make_session_mock(fetchall=rows)
         mock_db.return_value = session
->>>>>>> my-work
 
         from services.metric_calculator import get_all_attempts_for_aav
         result = get_all_attempts_for_aav(1)
@@ -267,20 +185,14 @@ class TestGetAllAttemptsForAAV:
         assert len(result) == 6
         assert result[0]["score_obtenu"] == 0.70
 
-    @patch("services.metric_calculator.get_db_session")
+    @patch("services.metric_calculator.get_db_connection")
     def test_aav_sans_tentatives_retourne_liste_vide(self, mock_db):
-<<<<<<< HEAD
-        mock_db.return_value = make_session_mock(query_return=[])
-=======
         session, _ = make_session_mock(fetchall=[])
         mock_db.return_value = session
->>>>>>> my-work
 
         from services.metric_calculator import get_all_attempts_for_aav
         assert get_all_attempts_for_aav(7) == []
 
-<<<<<<< HEAD
-=======
     @patch("services.metric_calculator.get_db_connection")
     def test_retourne_liste_de_dicts(self, mock_db):
         rows = [{"id": 1, "score_obtenu": 0.5, "id_aav_cible": 2}]
@@ -293,7 +205,6 @@ class TestGetAllAttemptsForAAV:
         assert isinstance(result, list)
         assert isinstance(result[0], dict)
 
->>>>>>> my-work
 
 # ==============================================================
 # TESTS — count_attempts
@@ -301,20 +212,14 @@ class TestGetAllAttemptsForAAV:
 
 class TestCountAttempts:
 
-    @patch("services.metric_calculator.get_db_session")
+    @patch("services.metric_calculator.get_db_connection")
     def test_aav_1_six_tentatives(self, mock_db):
-<<<<<<< HEAD
-        mock_db.return_value = make_session_mock(count_return=6)
-=======
         session, _ = make_session_mock(scalar=6)
         mock_db.return_value = session
->>>>>>> my-work
 
         from services.metric_calculator import count_attempts
         assert count_attempts(1) == 6
 
-<<<<<<< HEAD
-=======
     @patch("services.metric_calculator.get_db_connection")
     def test_aav_sans_tentatives_retourne_zero(self, mock_db):
         session, _ = make_session_mock(scalar=0)
@@ -331,7 +236,6 @@ class TestCountAttempts:
         from services.metric_calculator import count_attempts
         assert count_attempts(2) == 4
 
->>>>>>> my-work
 
 # ==============================================================
 # TESTS — count_distinct_learners
@@ -339,20 +243,14 @@ class TestCountAttempts:
 
 class TestCountDistinctLearners:
 
-    @patch("services.metric_calculator.get_db_session")
+    @patch("services.metric_calculator.get_db_connection")
     def test_aav_1_quatre_apprenants(self, mock_db):
-<<<<<<< HEAD
-        mock_db.return_value = make_session_mock(scalar_return=4)
-=======
         session, _ = make_session_mock(scalar=4)
         mock_db.return_value = session
->>>>>>> my-work
 
         from services.metric_calculator import count_distinct_learners
         assert count_distinct_learners(1) == 4
 
-<<<<<<< HEAD
-=======
     @patch("services.metric_calculator.get_db_connection")
     def test_aav_inutilise_zero_apprenants(self, mock_db):
         session, _ = make_session_mock(scalar=0)
@@ -361,7 +259,6 @@ class TestCountDistinctLearners:
         from services.metric_calculator import count_distinct_learners
         assert count_distinct_learners(17) == 0
 
->>>>>>> my-work
 
 # ==============================================================
 # TESTS — calculer_couverture
@@ -380,8 +277,6 @@ class TestCalculerCouverture:
         from services.metric_calculator import calculer_couverture
         assert calculer_couverture(1) == pytest.approx(0.7)
 
-<<<<<<< HEAD
-=======
     @patch("services.metric_calculator.diversity_evaluation_types")
     @patch("services.metric_calculator.count_prompts")
     @patch("services.metric_calculator.count_exercices")
@@ -426,7 +321,6 @@ class TestCalculerCouverture:
         from services.metric_calculator import calculer_couverture
         assert calculer_couverture(1) == pytest.approx(0.3)
 
->>>>>>> my-work
 
 # ==============================================================
 # TESTS — calculer_taux_succes
@@ -448,8 +342,6 @@ class TestCalculerTauxSucces:
         from services.metric_calculator import calculer_taux_succes
         assert calculer_taux_succes(8) == pytest.approx(0.80)
 
-<<<<<<< HEAD
-=======
     @patch("services.metric_calculator.get_all_attempts_for_aav")
     def test_aav_1_moyenne_scores_stables(self, mock_tentatives):
         scores = [0.70, 0.80, 0.85, 0.80, 0.90, 1.00]
@@ -480,7 +372,6 @@ class TestCalculerTauxSucces:
         result = calculer_taux_succes(5)
         assert result < 1.0
 
->>>>>>> my-work
 
 # ==============================================================
 # TESTS — determiner_utilisabilite
@@ -502,8 +393,6 @@ class TestDeterminerUtilisabilite:
         from services.metric_calculator import determiner_utilisabilite
         assert determiner_utilisabilite(1) is True
 
-<<<<<<< HEAD
-=======
     @patch("services.metric_calculator.calculer_taux_succes")
     @patch("services.metric_calculator.calculer_couverture")
     @patch("services.metric_calculator.get_aav")
@@ -568,7 +457,6 @@ class TestDeterminerUtilisabilite:
         from services.metric_calculator import determiner_utilisabilite
         assert determiner_utilisabilite(1) is False
 
->>>>>>> my-work
 
 # ==============================================================
 # TESTS — calculer_metriques_aav
@@ -598,15 +486,11 @@ class TestCalculerMetriquesAAV:
 
         fake_metrique = MagicMock()
         fake_metrique.id_aav = 1
-        fake_metrique.__getitem__.side_effect = lambda x: getattr(fake_metrique, x)
         mock_repo.return_value.create.return_value = fake_metrique
 
         from services.metric_calculator import calculer_metriques_aav
         result = calculer_metriques_aav(1)
 
-<<<<<<< HEAD
-        assert result["id_aav"] == 1
-=======
         assert result.id_aav == 1
         mock_repo.return_value.create.assert_called_once()
 
@@ -636,7 +520,6 @@ class TestCalculerMetriquesAAV:
 
         call_args = mock_repo.return_value.create.call_args[0][0]
         assert call_args.ecart_type_scores == 0.0
->>>>>>> my-work
 
 
 # ==============================================================
@@ -645,22 +528,15 @@ class TestCalculerMetriquesAAV:
 
 class TestGetMetriquesByAAV:
 
-    @patch("services.metric_calculator.get_db_session")
+    @patch("services.metric_calculator.get_db_connection")
     def test_retourne_dict_aav_1(self, mock_db):
-<<<<<<< HEAD
-        row = {"id_aav": 1, "taux_succes_moyen": 0.75, "est_utilisable": 1}
-        mock_db.return_value = make_session_mock(first_return=row)
-=======
         session, _ = make_session_mock(fetchone={"id_aav": 1, "taux_succes_moyen": 0.75, "est_utilisable": 1})
         mock_db.return_value = session
->>>>>>> my-work
 
         from services.metric_calculator import get_metriques_by_aav
         result = get_metriques_by_aav(1)
 
         assert result["id_aav"] == 1
-<<<<<<< HEAD
-=======
         assert result["taux_succes_moyen"] == 0.75
 
     @patch("services.metric_calculator.get_db_connection")
@@ -673,7 +549,6 @@ class TestGetMetriquesByAAV:
 
         call_args = session.execute.call_args
         assert call_args[0][1]["id_aav"] == 5
->>>>>>> my-work
 
 
 # ==============================================================
@@ -682,18 +557,14 @@ class TestGetMetriquesByAAV:
 
 class TestGetHistory:
 
-    @patch("services.metric_calculator.get_db_session")
+    @patch("services.metric_calculator.get_db_connection")
     def test_retourne_historique_trie_par_date(self, mock_db):
         rows = [
             {"id_aav": 1, "date_calcul": "2026-02-21"},
             {"id_aav": 1, "date_calcul": "2026-01-15"},
         ]
-<<<<<<< HEAD
-        mock_db.return_value = make_session_mock(query_return=rows)
-=======
         session, _ = make_session_mock(fetchall=rows)
         mock_db.return_value = session
->>>>>>> my-work
 
         from services.metric_calculator import get_history
         result = get_history(1)
@@ -701,8 +572,6 @@ class TestGetHistory:
         assert len(result) == 2
         assert result[0]["date_calcul"] == "2026-02-21"
 
-<<<<<<< HEAD
-=======
     @patch("services.metric_calculator.get_db_connection")
     def test_aucun_historique_retourne_liste_vide(self, mock_db):
         session, _ = make_session_mock(fetchall=[])
@@ -723,7 +592,6 @@ class TestGetHistory:
         assert isinstance(result, list)
         assert isinstance(result[0], dict)
 
->>>>>>> my-work
 
 # ==============================================================
 # TESTS — get_all_metrics
@@ -731,12 +599,8 @@ class TestGetHistory:
 
 class TestGetAllMetrics:
 
-    @patch("services.metric_calculator.get_db_session")
+    @patch("services.metric_calculator.get_db_connection")
     def test_retourne_liste(self, mock_db):
-<<<<<<< HEAD
-        row = {"id_aav": 1}
-        mock_db.return_value = make_session_mock(query_return=[row])
-=======
         row = {
             "id_metrique": 1,
             "id_aav": 1,
@@ -752,15 +616,12 @@ class TestGetAllMetrics:
         }
         session, _ = make_session_mock(fetchall=[row])
         mock_db.return_value = session
->>>>>>> my-work
 
         from services.metric_calculator import get_all_metrics
         result = get_all_metrics({})
 
+        assert isinstance(result, list)
         assert len(result) == 1
-<<<<<<< HEAD
-        assert result[0]["id_aav"] == 1
-=======
         assert result[0].id_aav == 1
 
     @patch("services.metric_calculator.get_db_connection")
@@ -772,4 +633,3 @@ class TestGetAllMetrics:
         get_all_metrics({})
 
         result_mock.fetchall.assert_called_once()
->>>>>>> my-work

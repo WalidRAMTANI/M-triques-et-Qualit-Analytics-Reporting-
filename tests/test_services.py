@@ -8,30 +8,6 @@ from unittest.mock import patch, MagicMock
 
 
 # ==============================================================
-<<<<<<< HEAD
-# HELPERS pour les mocks
-# ==============================================================
-
-def make_session_mock(query_return=None, scalar_return=None, count_return=None):
-    session = MagicMock()
-    session.__enter__.return_value = session
-    session.__exit__.return_value = False
-    
-    query = MagicMock()
-    session.query.return_value = query
-    query.join.return_value = query
-    query.filter.return_value = query
-    query.order_by.return_value = query
-    
-    if query_return is not None:
-        query.all.return_value = query_return
-    if scalar_return is not None:
-        query.scalar.return_value = scalar_return
-    if count_return is not None:
-        query.count.return_value = count_return
-        
-    return session
-=======
 # FIXTURES — Données issues du dump SQL
 # ==============================================================
 
@@ -122,7 +98,6 @@ def make_session_mock(scalar=None, fetchone=None, fetchall=None):
     session.__exit__ = MagicMock(return_value=False)
     session.execute.return_value = result
     return session, result
->>>>>>> my-work
 
 
 # ==============================================================
@@ -131,29 +106,18 @@ def make_session_mock(scalar=None, fetchone=None, fetchall=None):
 
 class TestGetApprenantsOntologie:
 
-    @patch("services.alert_detector.get_db_session")
+    @patch("services.alert_detector.get_db_connection")
     def test_retourne_apprenants_pour_ontologie_1(self, mock_db):
         rows = [
-<<<<<<< HEAD
-            {"id_apprenant": 1, "nom_utilisateur": "alice"},
-            {"id_apprenant": 2, "nom_utilisateur": "bob"},
-        ]
-        mock_db.return_value = make_session_mock(query_return=rows)
-=======
             {"id_apprenant": i, "nom_utilisateur": a["nom_utilisateur"]}
             for i, a in enumerate(APPRENANTS, 1)
         ]
         session, result = make_session_mock(fetchall=rows)
         mock_db.return_value = session
->>>>>>> my-work
 
         from services.alert_detector import get_apprenants_ontologie
         res = get_apprenants_ontologie(1)
 
-<<<<<<< HEAD
-        assert len(result) == 2
-        assert result[0]["nom_utilisateur"] == "alice"
-=======
         assert len(res) == 5
         noms = [r["nom_utilisateur"] for r in res]
         assert "alice_debutante" in noms
@@ -178,7 +142,6 @@ class TestGetApprenantsOntologie:
         call_args = session.execute.call_args
         # Les paramètres nommés SQLAlchemy sont dans le deuxième argument
         assert call_args[0][1]["ontologie_id"] == 42
->>>>>>> my-work
 
 
 # ==============================================================
@@ -187,20 +150,14 @@ class TestGetApprenantsOntologie:
 
 class TestCountAAVsBloques:
 
-    @patch("services.alert_detector.get_db_session")
+    @patch("services.alert_detector.get_db_connection")
     def test_alice_aucun_aav_bloque(self, mock_db):
-<<<<<<< HEAD
-        mock_db.return_value = make_session_mock(count_return=0)
-=======
         session, _ = make_session_mock(scalar=0)
         mock_db.return_value = session
->>>>>>> my-work
 
         from services.alert_detector import count_aavs_bloques
         assert count_aavs_bloques(1) == 0
 
-<<<<<<< HEAD
-=======
     @patch("services.alert_detector.get_db_connection")
     def test_bob_4_aavs_bloques(self, mock_db):
         session, _ = make_session_mock(scalar=4)
@@ -228,7 +185,6 @@ class TestCountAAVsBloques:
         sql = str(session.execute.call_args[0][0])
         assert "niveau_maitrise < 1" in sql
 
->>>>>>> my-work
 
 # ==============================================================
 # TESTS — calculer_progression
@@ -236,41 +192,15 @@ class TestCountAAVsBloques:
 
 class TestCalculerProgression:
 
-    @patch("services.alert_detector.get_db_session")
+    @patch("services.alert_detector.get_db_connection")
     def test_alice_progression_zero_sans_statuts(self, mock_db):
-<<<<<<< HEAD
-        mock_db.return_value = make_session_mock(scalar_return=0.0)
-=======
         """Alice n'a aucun statut → AVG retourne NULL → 0.0."""
         session, _ = make_session_mock(scalar=None)
         mock_db.return_value = session
->>>>>>> my-work
 
         from services.alert_detector import calculer_progression
         assert calculer_progression(1) == 0.0
 
-<<<<<<< HEAD
-
-# ==============================================================
-# TESTS — detecter_aavs_difficiles
-# ==============================================================
-
-class TestDetecterAAVsDifficiles:
-
-    @patch("services.alert_detector.count_attempts")
-    @patch("services.alert_detector.calculer_taux_succes")
-    @patch("services.alert_detector.get_all_aavs")
-    def test_aav_6_comparaison_detecte_difficile(self, mock_aavs, mock_taux, mock_count):
-        mock_aavs.return_value = [{"id_aav": 6, "nom": "Opérateurs de comparaison"}]
-        mock_taux.return_value = 0.17
-        mock_count.return_value = 3
-
-        from services.alert_detector import detecter_aavs_difficiles
-        result = detecter_aavs_difficiles(seuil_taux_succes=0.3)
-
-        assert len(result) == 1
-        assert result[0].id_aav == 6
-=======
     @patch("services.alert_detector.get_db_connection")
     def test_bob_progression_correcte(self, mock_db):
         """Bob: [0.85, 0.60, 0.45, 0.30] → moyenne = 0.55."""
@@ -297,7 +227,6 @@ class TestDetecterAAVsDifficiles:
 
         from services.alert_detector import calculer_progression
         assert abs(calculer_progression(4) - 0.3625) < 0.01
->>>>>>> my-work
 
 
 # ==============================================================
@@ -309,25 +238,15 @@ class TestDetecterApprenantsRisque:
     @patch("services.alert_detector.count_aavs_bloques")
     @patch("services.alert_detector.calculer_progression")
     @patch("services.alert_detector.get_apprenants_ontologie")
-<<<<<<< HEAD
-    def test_alice_detectee_progression_zero(self, mock_apprenants, mock_prog, mock_bloques):
-        mock_apprenants.return_value = [{"id_apprenant": 1, "nom_utilisateur": "alice_debutante"}]
-        mock_prog.return_value = 0.0
-        mock_bloques.return_value = 0
-=======
     def test_david_est_a_risque(self, mock_apprenants, mock_prog, mock_bloques):
         mock_apprenants.return_value = [{"id_apprenant": 4, "nom_utilisateur": "david_bloque"}]
         mock_prog.return_value = 0.05
         mock_bloques.return_value = 3
->>>>>>> my-work
 
         from services.alert_detector import detecter_apprenants_risque
         result = detecter_apprenants_risque(id_ontologie=1)
 
         assert len(result) == 1
-<<<<<<< HEAD
-        assert result[0].id_apprenant == 1
-=======
         assert result[0].id_apprenant == 4
 
     @patch("services.alert_detector.count_aavs_bloques")
@@ -369,7 +288,6 @@ class TestDetecterApprenantsRisque:
 
         assert len(result) == 1
         assert result[0].progression == pytest.approx(0.55)
->>>>>>> my-work
 
 
 # ==============================================================
@@ -389,8 +307,6 @@ class TestDetecterAAVsInutilises:
 
         assert len(result) == 1
         assert result[0].id_aav == 7
-<<<<<<< HEAD
-=======
         assert result[0].nom == "Opérateurs logiques"
 
     @patch("services.alert_detector.count_attempts")
@@ -426,7 +342,6 @@ class TestDetecterAAVsInutilises:
 
         from services.alert_detector import detecter_aavs_inutilises
         assert detecter_aavs_inutilises() == []
->>>>>>> my-work
 
 
 # ==============================================================
@@ -437,7 +352,6 @@ class TestDetecterAAVsFragiles:
 
     @patch("services.alert_detector.get_all_attempts_for_aav")
     @patch("services.alert_detector.get_all_aavs")
-    
     def test_aav_2_fragile_scores_tres_variables(self, mock_aavs, mock_tentatives):
         mock_aavs.return_value = [{"id_aav": 2, "nom": "Type caractère"}]
         mock_tentatives.return_value = [
@@ -448,14 +362,10 @@ class TestDetecterAAVsFragiles:
         result = detecter_aavs_fragiles(seuil_ecart_type=0.15)
 
         assert len(result) == 1
-<<<<<<< HEAD
-        assert result[0].id_aav == 2
-=======
         assert result[0].id_aav == 2
 
     @patch("services.alert_detector.get_all_attempts_for_aav")
     @patch("services.alert_detector.get_all_aavs")
-    
     def test_aav_1_stable_non_fragile(self, mock_aavs, mock_tentatives):
         mock_aavs.return_value = [{"id_aav": 1, "nom": "Types entiers"}]
         mock_tentatives.return_value = [
@@ -515,4 +425,3 @@ class TestDetecterAAVsFragiles:
         if result:
             decimales = len(str(result[0].ecart_type_scores).split(".")[-1])
             assert decimales <= 4
->>>>>>> my-work

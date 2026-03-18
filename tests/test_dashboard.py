@@ -71,8 +71,9 @@ def make_session_multi_mock(execute_results: list):
 
 class TestGetTeacherStats:
 
-    @patch("services.dashboard_data.get_db_session")
-    def test_enseignant_inexistant_retourne_none(self, mock_db):
+    @patch("services.dashboard_data.from_json")
+    @patch("services.dashboard_data.get_db_connection")
+    def test_enseignant_inexistant_retourne_none(self, mock_db, mock_json):
         """Retourne None si l'enseignant n'existe pas."""
         session = make_session_multi_mock([
             {"fetchone": None},  # première requête: SELECT discipline
@@ -83,8 +84,9 @@ class TestGetTeacherStats:
         result = get_teacher_stats(999)
         assert result is None
 
-    @patch("services.dashboard_data.get_db_session")
-    def test_retourne_dict_avec_disciplines(self, mock_db):
+    @patch("services.dashboard_data.from_json")
+    @patch("services.dashboard_data.get_db_connection")
+    def test_retourne_dict_avec_disciplines(self, mock_db, mock_json):
         """Le résultat contient bien la clé 'disciplines'."""
         mock_json.return_value = ["Programmation"]
         session = make_session_multi_mock([
@@ -124,7 +126,7 @@ class TestGetTeacherStats:
 
 class TestGetDisciplineStats:
 
-    @patch("services.dashboard_data.get_db_session")
+    @patch("services.dashboard_data.get_db_connection")
     def test_retourne_dict_avec_champs_attendus(self, mock_db):
         """Retourne un dict avec moyenne, moyenne_covering et nb."""
         session, _ = make_session_mock(
@@ -188,8 +190,9 @@ class TestGetDisciplineStats:
 
 class TestGetOntologyCov:
 
-    @patch("services.dashboard_data.get_db_session")
-    def test_ontologie_inexistante_retourne_none(self, mock_db):
+    @patch("services.dashboard_data.from_json")
+    @patch("services.dashboard_data.get_db_connection")
+    def test_ontologie_inexistante_retourne_none(self, mock_db, mock_json):
         """Retourne None si l'ontologie n'existe pas."""
         session = make_session_multi_mock([
             {"fetchone": None},
@@ -200,8 +203,9 @@ class TestGetOntologyCov:
         result = get_ontology_cov(999)
         assert result is None
 
-    @patch("services.dashboard_data.get_db_session")
-    def test_retourne_dict_avec_nb_aav_et_moyenne(self, mock_db):
+    @patch("services.dashboard_data.from_json")
+    @patch("services.dashboard_data.get_db_connection")
+    def test_retourne_dict_avec_nb_aav_et_moyenne(self, mock_db, mock_json):
         """Le résultat contient nb_aav et moyenne_covering."""
         mock_json.return_value = [1, 2, 3]
         session = make_session_multi_mock([

@@ -1,6 +1,6 @@
 import statistics
 from typing import List, Optional
-from database import get_db_session, ApprenantModel, StatutApprentissageModel, MetriqueQualiteAAVModel
+from database import get_db_session, get_db_connection, ApprenantModel, StatutApprentissageModel, MetriqueQualiteAAVModel
 from services.metric_calculator import calculer_taux_succes, get_all_aavs, count_attempts, get_all_attempts_for_aav
 from model.schemas import AAVDifficile, AAVInutilise, AAVFragile, ApprenantRisque
 from sqlalchemy import text

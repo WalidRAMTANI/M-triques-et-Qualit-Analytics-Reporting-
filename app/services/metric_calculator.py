@@ -1,10 +1,9 @@
 import statistics
 from typing import List, Optional
 from datetime import datetime
-from database import get_db_connection, from_json
 from model.model import MetriqueQualiteAAV
-from database import MetriqueQualiteAAVRepository
 from sqlalchemy import text
+from database import get_db_connection, from_json, MetriqueQualiteAAVRepository, AAVModel, TentativeModel, MetriqueQualiteAAVModel
 
 def count_exercices(aav_id: int) -> int:
     """Counts the number of exercises for an AAV (stored as JSON in the ids_exercices column)."""
@@ -41,7 +40,7 @@ def diversity_evaluation_types(aav_id: int) -> int:
         ).scalar() or 0
 
 
-def get_all_attempts_for_aav(aav_id: int) -> List[TentativeModel]:
+def get_all_attempts_for_aav(aav_id: int) -> List[dict]:
     """Retrieves all attempts for a given AAV."""
     with get_db_connection() as session:
         result = session.execute(

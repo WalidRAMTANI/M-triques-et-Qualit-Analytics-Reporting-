@@ -1,4 +1,4 @@
-from database import get_db_session, EnseignantModel, AAVModel, MetriqueQualiteAAVModel, TentativeModel, OntologyReferenceModel
+from database import get_db_session, EnseignantModel, AAVModel, MetriqueQualiteAAVModel, TentativeModel, OntologyReferenceModel, get_db_connection
 from typing import Optional
 from database import from_json
 from sqlalchemy import text
