@@ -20,7 +20,7 @@ build/
 
 # Fichier de test temporaire
 test_setup.py
-
+venv
 # Fichiers de test
 test_api.py
 test_csv.py

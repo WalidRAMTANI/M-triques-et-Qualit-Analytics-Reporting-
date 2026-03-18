@@ -14,9 +14,17 @@ from contextlib import contextmanager
 from typing import Optional, List, Dict, Any
 from pathlib import Path
 from model.model import MetriqueQualiteAAV, Rapport, Enseignant
+from sqlalchemy import create_engine, text
+from sqlalchemy.orm import sessionmaker, Session
+from contextlib import contextmanager
+from datetime import datetime
 # Configuration
-DATABASE_PATH = Path("platonAAV.db")
+DATABASE_URL = "sqlite:///./platonAAV.db"
+engine = create_engine(
+    DATABASE_URL
+    )
 
+SessionLocal = sessionmaker(bind=engine, autocommit=False, autoflush=False)
 
 class DatabaseError(Exception):
     """Exception personnalisée pour les erreurs de base de données."""
@@ -26,32 +34,21 @@ class DatabaseError(Exception):
 @contextmanager
 def get_db_connection():
     """
-    Context manager for handling SQLite3 connections.
-
+    Context manager SQLAlchemy — équivalent de votre version SQLite3.
+    
     Usage:
-        with get_db_connection() as conn:
-            cursor = conn.cursor()
-            cursor.execute("SELECT * FROM aav")
-            results = cursor.fetchall()
-
-    Benefits:
-    - Automatic transaction management (commit/rollback)
-    - Guaranteed connection closure
-    - Column accessibility by name (row_factory)
+        with get_db_connection() as session:
+            results = session.execute(text("SELECT * FROM aav")).fetchall()
     """
-    conn = sqlite3.connect(DATABASE_PATH)
-    # Permet d'accéder aux colonnes par nom: row['nom_colonne']
-    conn.row_factory = sqlite3.Row
-
+    session = SessionLocal()
     try:
-        yield conn
-        conn.commit()  # Validation automatique si tout s'est bien passé
+        yield session
+        session.commit()       # Commit automatique si tout va bien
     except Exception as e:
-        conn.rollback()  # Annulation en cas d'erreur
+        session.rollback()     # Rollback en cas d'erreur
         raise DatabaseError(f"Erreur base de données: {str(e)}") from e
     finally:
-        conn.close()  # Fermeture garantie
-
+        session.close()        # Fermeture
 
 def init_database():
     """
@@ -421,45 +418,62 @@ class BaseRepository:
             return cursor.fetchone()[0]
 
 # Repository spécifique
+
 class MetriqueQualiteAAVRepository(BaseRepository):
     def __init__(self):
         super().__init__("metrique_qualite_aav", "id_metrique")
 
     def create(self, data: MetriqueQualiteAAV) -> MetriqueQualiteAAV:
-        """Creates an AAV and returns its ID."""
-        with get_db_connection() as conn:
-            cursor = conn.cursor()
-            cursor.execute("SELECT MAX(id_metrique) FROM metrique_qualite_aav")
-            max_id = cursor.fetchone()[0]
-            if max_id is None:
-                max_id = 0
-            cursor.execute("""
-            INSERT INTO metrique_qualite_aav (
-                id_metrique,
-                id_aav,
-                score_covering_ressources,
-                taux_succes_moyen,
-                est_utilisable,
-                nb_tentatives_total,
-                nb_apprenants_distincts,
-                ecart_type_scores,
-                date_calcul,
-                periode_debut,
-                periode_fin
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        """, (
-            max_id + 1,
-            data.id_aav,
-            data.score_covering_ressources,
-            data.taux_succes_moyen,
-            data.est_utilisable,
-            data.nb_tentatives_total,
-            data.nb_apprenants_distincts,
-            data.ecart_type_scores,
-            data.date_calcul.isoformat(),
-            data.periode_debut.isoformat(),
-            data.periode_fin.isoformat()
-        ))
+        """Creates a MetriqueQualiteAAV and returns it with its new ID."""
+        with get_db_connection() as session:
+            result = session.execute(
+                text("SELECT MAX(id_metrique) FROM metrique_qualite_aav")
+            )
+            max_id = result.scalar() or 0
+
+            session.execute(
+                text("""
+                    INSERT INTO metrique_qualite_aav (
+                        id_metrique,
+                        id_aav,
+                        score_covering_ressources,
+                        taux_succes_moyen,
+                        est_utilisable,
+                        nb_tentatives_total,
+                        nb_apprenants_distincts,
+                        ecart_type_scores,
+                        date_calcul,
+                        periode_debut,
+                        periode_fin
+                    ) VALUES (
+                        :id_metrique,
+                        :id_aav,
+                        :score_covering_ressources,
+                        :taux_succes_moyen,
+                        :est_utilisable,
+                        :nb_tentatives_total,
+                        :nb_apprenants_distincts,
+                        :ecart_type_scores,
+                        :date_calcul,
+                        :periode_debut,
+                        :periode_fin
+                    )
+                """),
+                {
+                    "id_metrique": max_id + 1,
+                    "id_aav": data.id_aav,
+                    "score_covering_ressources": data.score_covering_ressources,
+                    "taux_succes_moyen": data.taux_succes_moyen,
+                    "est_utilisable": data.est_utilisable,
+                    "nb_tentatives_total": data.nb_tentatives_total,
+                    "nb_apprenants_distincts": data.nb_apprenants_distincts,
+                    "ecart_type_scores": data.ecart_type_scores,
+                    "date_calcul": data.date_calcul.isoformat(),
+                    "periode_debut": data.periode_debut.isoformat(),
+                    "periode_fin": data.periode_fin.isoformat(),
+                }
+            )
+
         data.id_metrique = max_id + 1
         return data
 
@@ -468,53 +482,77 @@ class RapportRepository(BaseRepository):
         super().__init__("rapport_periodique", "id_rapport")
 
     def create(self, data: Rapport) -> Rapport:
-        from datetime import datetime
-        """Crate a report and return it."""
-        with get_db_connection() as conn:
-            cursor = conn.cursor()
-            cursor.execute("SELECT MAX(id_rapport) FROM rapport_periodique")
-            max_id = cursor.fetchone()[0]
-            if max_id is None:
-                max_id = 0
-            cursor.execute("""
-            INSERT INTO rapport_periodique (
-                id_rapport,
-                type_rapport,
-                id_cible,
-                date_generation,
-                periode_debut,
-                periode_fin,
-                format,
-                contenu,
-                format_fichier
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-        """, (
-            max_id + 1,
-            data.type_rapport,
-            data.id_cible,
-            data.date_generation.isoformat(),
-            data.periode_debut.isoformat() if data.periode_debut is not None else datetime.now().isoformat(),
-            data.periode_fin.isoformat() if data.periode_fin is not None else datetime.now().isoformat(),
-            data.format,
-            data.contenu,
-            data.format_fichier
-        ))
-        data.periode_debut = data.periode_debut.isoformat() if data.periode_debut is not None else datetime.now().isoformat()
-        data.periode_fin = data.periode_fin.isoformat() if data.periode_fin is not None else datetime.now().isoformat()
-        data.id_rapport = max_id + 1
+        """Create a report and return it."""
+        now = datetime.now().isoformat()
+
+        periode_debut = data.periode_debut.isoformat() if data.periode_debut is not None else now
+        periode_fin   = data.periode_fin.isoformat()   if data.periode_fin   is not None else now
+
+        with get_db_connection() as session:
+            max_id = session.execute(
+                text("SELECT MAX(id_rapport) FROM rapport_periodique")
+            ).scalar() or 0
+
+            session.execute(
+                text("""
+                    INSERT INTO rapport_periodique (
+                        id_rapport,
+                        type_rapport,
+                        id_cible,
+                        date_generation,
+                        periode_debut,
+                        periode_fin,
+                        format,
+                        contenu,
+                        format_fichier
+                    ) VALUES (
+                        :id_rapport,
+                        :type_rapport,
+                        :id_cible,
+                        :date_generation,
+                        :periode_debut,
+                        :periode_fin,
+                        :format,
+                        :contenu,
+                        :format_fichier
+                    )
+                """),
+                {
+                    "id_rapport":       max_id + 1,
+                    "type_rapport":     data.type_rapport,
+                    "id_cible":         data.id_cible,
+                    "date_generation":  data.date_generation.isoformat(),
+                    "periode_debut":    periode_debut,
+                    "periode_fin":      periode_fin,
+                    "format":           data.format,
+                    "contenu":          data.contenu,
+                    "format_fichier":   data.format_fichier,
+                }
+            )
+
+        data.periode_debut = periode_debut
+        data.periode_fin   = periode_fin
+        data.id_rapport    = max_id + 1
         return data
+from sqlalchemy import text
 
 class EnseignantRepository(BaseRepository):
-        def __init__(self):
-            super().__init__("enseignant", "id_enseignant")
-        
-        def create(self, data :Enseignant) -> Enseignant:
-            with get_db_connection() as conn:
-                cursor = conn.cursor()
-                cursor.execute("""
-                INSERT INTO enseignant(nom, email, discipline) VALUES (?,?,?)
-                
-                """, (data.nom, data.email,to_json(data.disciplines)))
-                data.id_enseignant = cursor.lastrowid
+    def __init__(self):
+        super().__init__("enseignant", "id_enseignant")
 
-            return data
+    def create(self, data: Enseignant) -> Enseignant:
+        with get_db_connection() as session:
+            result = session.execute(
+                text("""
+                    INSERT INTO enseignant (nom, email, discipline)
+                    VALUES (:nom, :email, :discipline)
+                """),
+                {
+                    "nom":        data.nom,
+                    "email":      data.email,
+                    "discipline": to_json(data.disciplines),
+                }
+            )
+            data.id_enseignant = result.lastrowid
+
+        return data

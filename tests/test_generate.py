@@ -38,25 +38,44 @@ STUDENT_BOB = {
 }
 
 TENTATIVES_BOB = [
-    {"id_aav": 1, "nom": "Types entiers",         "score_obtenu": 0.85, "date_tentative": "2026-02-20"},
-    {"id_aav": 2, "nom": "Type caractère",         "score_obtenu": 0.60, "date_tentative": "2026-02-19"},
+    {"id_aav": 1, "nom": "Types entiers",          "score_obtenu": 0.85, "date_tentative": "2026-02-20"},
+    {"id_aav": 2, "nom": "Type caractère",          "score_obtenu": 0.60, "date_tentative": "2026-02-19"},
     {"id_aav": 5, "nom": "Opérateurs arithmétiques","score_obtenu": 0.45, "date_tentative": "2026-02-18"},
 ]
 
 
 # ==============================================================
-# HELPERS
+# HELPERS — interface SQLAlchemy
 # ==============================================================
 
-def make_conn_mock(fetchone=None, fetchall=None):
-    cursor = MagicMock()
-    cursor.fetchone.return_value = fetchone
-    cursor.fetchall.return_value = fetchall or []
-    conn = MagicMock()
-    conn.__enter__ = MagicMock(return_value=conn)
-    conn.__exit__ = MagicMock(return_value=False)
-    conn.cursor.return_value = cursor
-    return conn, cursor
+def make_row_mock(data: dict):
+    """Crée un mock de ligne SQLAlchemy avec ._mapping."""
+    row = MagicMock()
+    row._mapping = data
+    # Permet aussi l'accès direct via row["key"] pour la compat
+    row.__getitem__ = lambda self, k: data[k]
+    return row
+
+
+def make_session_mock(scalar=None, fetchone=None, fetchall=None):
+    """
+    Crée un mock de session SQLAlchemy.
+    session.execute(...) retourne un résultat dont on peut appeler
+    .scalar(), .fetchone() ou .fetchall().
+    """
+    result = MagicMock()
+    result.scalar.return_value = scalar
+    result.fetchone.return_value = make_row_mock(fetchone) if isinstance(fetchone, dict) else fetchone
+    result.fetchall.return_value = (
+        [make_row_mock(r) if isinstance(r, dict) else r for r in fetchall]
+        if fetchall is not None else []
+    )
+
+    session = MagicMock()
+    session.__enter__ = MagicMock(return_value=session)
+    session.__exit__ = MagicMock(return_value=False)
+    session.execute.return_value = result
+    return session, result
 
 
 # ==============================================================
@@ -89,7 +108,6 @@ class TestGenerateCsvString:
         assert "Types entiers" in result
 
     def test_liste_simple_zippee_avec_fieldnames(self):
-        """Une liste plate [1, 'Maths', 80] est zippée avec les fieldnames."""
         from services.report_generator import generate_csv_string
         fields = ["id", "nom", "score"]
         data = [1, "Maths", 80]
@@ -133,13 +151,11 @@ class TestToPdf:
         assert "MonTitre" in decoded
 
     def test_accents_supprimes_sans_crash(self):
-        """Les caractères non-ASCII sont ignorés (encode ascii ignore)."""
         from services.report_generator import to_pdf
         result = to_pdf({"nom": "Opérateurs"}, title="Rapport")
         assert isinstance(result, str)
 
     def test_parentheses_echappees(self):
-        """Les parenthèses dans les données ne doivent pas corrompre le PDF."""
         from services.report_generator import to_pdf
         result = to_pdf({"note": "résultat (excellent)"}, title="Test")
         decoded = base64.b64decode(result).decode("ascii", errors="ignore")
@@ -159,16 +175,15 @@ class TestGetStudent:
 
     @patch("services.report_generator.get_db_connection")
     def test_bob_retourne_dict_correct(self, mock_db):
-        row = MagicMock()
-        row.__getitem__ = lambda self, k: {
+        row_data = {
             "id_apprenant": 2,
             "nom_utilisateur": "bob_progressif",
             "email": "bob@example.com",
             "date_inscription": "2026-01-10",
             "derniere_connexion": "2026-02-21"
-        }[k]
-        conn, cursor = make_conn_mock(fetchone=row)
-        mock_db.return_value = conn
+        }
+        session, _ = make_session_mock(fetchone=row_data)
+        mock_db.return_value = session
 
         from services.report_generator import get_student
         result = get_student(2)
@@ -179,22 +194,24 @@ class TestGetStudent:
 
     @patch("services.report_generator.get_db_connection")
     def test_apprenant_inexistant_retourne_none(self, mock_db):
-        conn, cursor = make_conn_mock(fetchone=None)
-        mock_db.return_value = conn
+        session, result_mock = make_session_mock()
+        result_mock.fetchone.return_value = None
+        mock_db.return_value = session
 
         from services.report_generator import get_student
         assert get_student(999) is None
 
     @patch("services.report_generator.get_db_connection")
     def test_requete_utilise_bon_id(self, mock_db):
-        conn, cursor = make_conn_mock(fetchone=None)
-        mock_db.return_value = conn
+        session, result_mock = make_session_mock()
+        result_mock.fetchone.return_value = None
+        mock_db.return_value = session
 
         from services.report_generator import get_student
         get_student(42)
 
-        args = cursor.execute.call_args[0]
-        assert args[1] == (42,)
+        call_args = session.execute.call_args
+        assert call_args[0][1]["student_id"] == 42
 
 
 # ==============================================================
@@ -289,8 +306,8 @@ class TestCollectDataForStudent:
 
     def _setup_student_mock(self, mock_get_student, mock_db):
         mock_get_student.return_value = STUDENT_BOB
-        conn, cursor = make_conn_mock(fetchall=TENTATIVES_BOB)
-        mock_db.return_value = conn
+        session, _ = make_session_mock(fetchall=TENTATIVES_BOB)
+        mock_db.return_value = session
 
     @patch("services.report_generator.get_db_connection")
     @patch("services.report_generator.get_student")
@@ -412,7 +429,6 @@ class TestCollectDataForDiscipline:
     def test_filtre_par_discipline(
         self, mock_aavs, mock_taux, mock_couv, mock_util, mock_diff, mock_frag, mock_inut
     ):
-        """AAVs d'une autre discipline sont exclus du rapport."""
         aav_autre = {**AAV_1, "discipline": "Mathématiques"}
         mock_aavs.return_value = [AAV_1, AAV_5, aav_autre]
         mock_taux.return_value = 0.70
@@ -593,11 +609,10 @@ class TestGenererRapportGlobal:
         self, mock_aavs, mock_taux, mock_couv, mock_util,
         mock_count, mock_diff, mock_frag, mock_inut
     ):
-        """2 AAVs dont 1 seul utilisable → nb_aavs_utilisables = 1."""
         mock_aavs.return_value = [AAV_1, AAV_5]
         mock_taux.return_value = 0.50
         mock_couv.return_value = 0.80
-        mock_util.side_effect = [True, False]  # AAV1 utilisable, AAV5 non
+        mock_util.side_effect = [True, False]
         mock_count.return_value = 3
         mock_diff.return_value = []
         mock_frag.return_value = []

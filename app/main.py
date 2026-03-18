@@ -21,7 +21,7 @@ app = FastAPI(
 @app.on_event("startup")
 def startup():
     """Creates all tables on startup (common + Group 7)."""
-    init_database()
+    #init_database()
 # ============================================
 # ROUTERS
 # ============================================

@@ -3,41 +3,35 @@ from typing import List, Optional
 from database import get_db_connection
 from services.metric_calculator import calculer_taux_succes, get_all_aavs, count_attempts, get_all_attempts_for_aav
 from model.schemas import AAVDifficile, AAVInutilise, AAVFragile, ApprenantRisque
+from sqlalchemy import text
 
 def get_apprenants_ontologie(ontologie_id: int) -> List[dict]:
     """Retrieves all learners with a given ontology."""
-    with get_db_connection() as conn:
-        cursor = conn.cursor()
-        cursor.execute(
-            "SELECT * FROM apprenant WHERE ontologie_reference_id = ?",
-            (ontologie_id,)
+    with get_db_connection() as session:
+        result = session.execute(
+            text("SELECT * FROM apprenant WHERE ontologie_reference_id = :ontologie_id"),
+            {"ontologie_id": ontologie_id}
         )
-        return [dict(row) for row in cursor.fetchall()]
+        return [dict(row._mapping) for row in result.fetchall()]
 
 
 def count_aavs_bloques(apprenant_id: int) -> int:
     """Counts the number of non-mastered AAVs for a learner."""
-    with get_db_connection() as conn:
-        cursor = conn.cursor()
-        cursor.execute(
-            "SELECT COUNT(*) FROM statut_apprentissage WHERE id_apprenant = ? AND niveau_maitrise < 1",
-            (apprenant_id,)
-        )
-        return cursor.fetchone()[0]
+    with get_db_connection() as session:
+        return session.execute(
+            text("SELECT COUNT(*) FROM statut_apprentissage WHERE id_apprenant = :apprenant_id AND niveau_maitrise < 1"),
+            {"apprenant_id": apprenant_id}
+        ).scalar() or 0
 
 
 def calculer_progression(apprenant_id: int) -> float:
     """Calculates the average progression of a learner (average mastery level)."""
-    with get_db_connection() as conn:
-        cursor = conn.cursor()
-
-        cursor.execute(
-            "SELECT AVG(niveau_maitrise) FROM statut_apprentissage WHERE id_apprenant = ?",
-            (apprenant_id,)
-        )
-        result = cursor.fetchone()[0]
+    with get_db_connection() as session:
+        result = session.execute(
+            text("SELECT AVG(niveau_maitrise) FROM statut_apprentissage WHERE id_apprenant = :apprenant_id"),
+            {"apprenant_id": apprenant_id}
+        ).scalar()
         return float(result) if result is not None else 0.0
-
 
 # ==============================================================
 # FONCTIONS PRINCIPALES — Détection des alertes
