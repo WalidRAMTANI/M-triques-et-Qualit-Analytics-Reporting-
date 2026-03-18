@@ -1,0 +1,14 @@
+projet: titre avancé étudiant
+    groupe: 7
+    binome1:
+        nom: "Ohald"
+        prenom: "William"
+        email: "william.ohald@gmail.com"
+    binome2:
+        nom: "Ramtani"
+        prenom: "Walid"
+        email: ""
+    description: "Ce projet consiste à développer une application de gestion de tâches pour les étudiants.
+    L'application permettra aux utilisateurs de créer, modifier et supprimer des tâches, ainsi que de les organiser par catégories et de définir des rappels."
+
+    
