@@ -7,7 +7,7 @@ projet: titre avancé étudiant
     binome2:
         nom: "Ramtani"
         prenom: "Walid"
-        email: ""
+        email: "walid.ramtani@yahoo.com"
     description: "Ce projet consiste à développer une application de gestion de tâches pour les étudiants.
     L'application permettra aux utilisateurs de créer, modifier et supprimer des tâches, ainsi que de les organiser par catégories et de définir des rappels."
 
