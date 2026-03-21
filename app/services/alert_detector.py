@@ -1,35 +1,91 @@
 import statistics
 from typing import List, Optional
-from database import get_db_session, get_db_connection, ApprenantModel, StatutApprentissageModel, MetriqueQualiteAAVModel
+from database import get_db_connection, ApprenantModel, StatutApprentissageModel, MetriqueQualiteAAVModel
 from services.metric_calculator import calculer_taux_succes, get_all_aavs, count_attempts, get_all_attempts_for_aav
 from model.schemas import AAVDifficile, AAVInutilise, AAVFragile, ApprenantRisque
-from sqlalchemy import text
+from sqlalchemy import func
 
-def get_apprenants_ontologie(ontologie_id: int) -> List[ApprenantModel]:
-    """Retrieves all learners with a given ontology."""
+def get_apprenants_ontologie(ontologie_id: int) -> List[dict]:
+    """
+    Retrieve all learners assigned to a specific ontology.
+    
+    Fetches all learner records where the ontology_reference_id matches,
+    and converts them to dictionaries.
+    
+    Args:
+        ontologie_id (int): The ID of the ontology reference.
+    
+    Returns:
+        List[dict]: List of learner dictionaries.
+    
+    Example:
+        >>> get_apprenants_ontologie(1)
+        [{'id_apprenant': 1, 'nom_utilisateur': 'Alice', ...}, ...]
+    """
     with get_db_connection() as session:
-        result = session.execute(
-            text("SELECT * FROM apprenant WHERE ontologie_reference_id = :ontologie_id"),
-            {"ontologie_id": ontologie_id}
-        )
-        return [dict(row._mapping) for row in result.fetchall()]
+        # Query all learners for this ontology
+        apprenants = session.query(ApprenantModel).filter(
+            ApprenantModel.ontologie_reference_id == ontologie_id
+        ).all()
+        return [
+            {
+                "id_apprenant": a.id_apprenant,
+                "nom_utilisateur": a.nom_utilisateur,
+                "email": a.email,
+                "ontologie_reference_id": a.ontologie_reference_id,
+            }
+            for a in apprenants
+        ]
 
 
 def count_aavs_bloques(apprenant_id: int) -> int:
-    """Counts the number of non-mastered AAVs for a learner."""
+    """
+    Count the number of non-mastered AAVs for a learner.
+    
+    Counts learning status records where the learner has not mastered
+    (niveau_maitrise < 1) the specific AAV.
+    
+    Args:
+        apprenant_id (int): The ID of the learner.
+    
+    Returns:
+        int: Number of non-mastered AAVs, or 0 if none.
+    
+    Example:
+        >>> count_aavs_bloques(1)
+        3
+    """
     with get_db_connection() as session:
-        return session.execute(
-            text("SELECT COUNT(*) FROM statut_apprentissage WHERE id_apprenant = :apprenant_id AND niveau_maitrise < 1"),
-            {"apprenant_id": apprenant_id}
+        # Count unmastered AAVs for this learner
+        return session.query(func.count(StatutApprentissageModel.id)).filter(
+            StatutApprentissageModel.id_apprenant == apprenant_id,
+            StatutApprentissageModel.niveau_maitrise < 1
         ).scalar() or 0
 
 
 def calculer_progression(apprenant_id: int) -> float:
-    """Calculates the average progression of a learner (average mastery level)."""
+    """
+    Calculate the average learning progression for a learner.
+    
+    Computes the mean mastery level across all learning status records
+    for the given learner.
+    
+    Args:
+        apprenant_id (int): The ID of the learner.
+    
+    Returns:
+        float: Average mastery level between 0.0 and 1.0, or 0.0 if no data.
+    
+    Example:
+        >>> calculer_progression(1)
+        0.65
+    """
     with get_db_connection() as session:
-        result = session.execute(
-            text("SELECT AVG(niveau_maitrise) FROM statut_apprentissage WHERE id_apprenant = :apprenant_id"),
-            {"apprenant_id": apprenant_id}
+        # Calculate average mastery level
+        result = session.query(
+            func.avg(StatutApprentissageModel.niveau_maitrise)
+        ).filter(
+            StatutApprentissageModel.id_apprenant == apprenant_id
         ).scalar()
         return float(result) if result is not None else 0.0
 

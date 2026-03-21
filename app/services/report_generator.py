@@ -80,23 +80,36 @@ def generate_csv_string(data, field):
     writer.writerows(data)
     return output.getvalue()
 
-from sqlalchemy import text
-
-def get_student(student_id: int) -> Optional[LearnerBase]:
-    """Retrieves a learner by their ID. Returns None if not found."""
+def get_student(student_id: int) -> Optional[dict]:
+    """
+    Retrieve learner information by ID.
+    
+    Fetches complete learner details including name, email, registration date,
+    and last connection date.
+    
+    Args:
+        student_id (int): The ID of the learner to retrieve.
+    
+    Returns:
+        Optional[dict]: Learner dictionary or None if not found.
+    
+    Example:
+        >>> get_student(1)
+        {'id_apprenant': 1, 'nom': 'Alice', 'email': 'alice@example.com', ...}
+    """
     with get_db_connection() as session:
-        row = session.execute(
-            text("SELECT * FROM apprenant WHERE id_apprenant = :student_id"),
-            {"student_id": student_id}
-        ).fetchone()
-        if row:
-            m = row._mapping
+        from database import ApprenantModel
+        # Query learner by ID
+        apprenant = session.query(ApprenantModel).filter(
+            ApprenantModel.id_apprenant == student_id
+        ).first()
+        if apprenant:
             return {
-                "id_apprenant":      m["id_apprenant"],
-                "nom":               m["nom_utilisateur"],
-                "email":             m["email"],
-                "date_inscription":  m["date_inscription"],
-                "derniere_connexion": m["derniere_connexion"]
+                "id_apprenant":      apprenant.id_apprenant,
+                "nom":               apprenant.nom_utilisateur,
+                "email":             apprenant.email,
+                "date_inscription":  apprenant.date_inscription,
+                "derniere_connexion": apprenant.derniere_connexion
             }
         return None
 
@@ -124,29 +137,51 @@ def collect_data_for_aav(id_aav: int, format: str) -> any:
     else:
         raise ValueError(f"Format de rapport inconnu : {format}")
     
-from sqlalchemy import text
+from sqlalchemy import func
 
 def collect_data_for_student(id_cible: int, format: str) -> dict:
     """
-    Collects all necessary data for a given learner.
+    Collect all learning data for a specific learner.
+    
+    Gathers all attempts made by the learner, with associated AAV information,
+    sorted by date in descending order. Returns data in the requested format
+    (CSV, PDF, or JSON).
+    
+    Args:
+        id_cible (int): The ID of the learner to generate report for.
+        format (str): Output format - 'csv', 'pdf', or 'json'.
+    
+    Returns:
+        dict: Formatted report data, or None if learner not found.
+    
+    Example:
+        >>> collect_data_for_student(1, 'json')
+        {'id_apprenant': 1, 'nom': 'Alice', 'tentatives': [...]}
     """
     student = get_student(id_cible)
     if not student:
         return None
 
     with get_db_connection() as session:
-        tentatives = [
-            dict(row._mapping)
-            for row in session.execute(
-                text("""
-                    SELECT t.id_aav_cible AS id_aav, a.nom, t.score_obtenu, t.date_tentative
-                    FROM tentative t
-                    JOIN aav a ON t.id_aav_cible = a.id_aav
-                    WHERE t.id_apprenant = :id_cible
-                    ORDER BY t.date_tentative DESC
-                """),
-                {"id_cible": id_cible}
-            ).fetchall()
+        from database import TentativeModel, AAVModel
+        # Get all attempts for this learner, ordered by date
+        tentatives = session.query(
+            TentativeModel.id_aav_cible.label("id_aav"),
+            AAVModel.nom,
+            TentativeModel.score_obtenu,
+            TentativeModel.date_tentative
+        ).join(AAVModel, TentativeModel.id_aav_cible == AAVModel.id_aav)\
+         .filter(TentativeModel.id_apprenant == id_cible)\
+         .order_by(TentativeModel.date_tentative.desc()).all()
+
+        tentatives_list = [
+            {
+                "id_aav": t.id_aav,
+                "nom": t.nom,
+                "score_obtenu": t.score_obtenu,
+                "date_tentative": t.date_tentative,
+            }
+            for t in tentatives
         ]
 
     id_apprenant = student["id_apprenant"]
@@ -162,7 +197,7 @@ def collect_data_for_student(id_cible: int, format: str) -> dict:
                 "score_obtenu":  t.get("score_obtenu"),
                 "date_tentative": t.get("date_tentative"),
             }
-            for t in tentatives
+            for t in tentatives_list
         ]
         return generate_csv_string(
             flat_data,
@@ -170,14 +205,14 @@ def collect_data_for_student(id_cible: int, format: str) -> dict:
         )
 
     elif format == "pdf":
-        return to_pdf(tentatives, title=f"Rapport Apprenant - {nom_apprenant} ({id_apprenant})")
+        return to_pdf(tentatives_list, title=f"Rapport Apprenant - {nom_apprenant} ({id_apprenant})")
 
     elif format == "json":
         return {
             "id_apprenant":  id_apprenant,
             "nom":           nom_apprenant,
-            "nb_tentatives": len(tentatives),
-            "tentatives":    tentatives,
+            "nb_tentatives": len(tentatives_list),
+            "tentatives":    tentatives_list,
         }
 
     else:
