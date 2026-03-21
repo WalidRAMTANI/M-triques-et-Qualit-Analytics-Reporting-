@@ -1,6 +1,5 @@
-from database import get_db_session, EnseignantModel, AAVModel, MetriqueQualiteAAVModel, TentativeModel, OntologyReferenceModel, get_db_connection
+from app.database import get_db_session, EnseignantModel, AAVModel, MetriqueQualiteAAVModel, TentativeModel, OntologyReferenceModel, get_db_connection, from_json
 from typing import Optional
-from database import from_json
 from sqlalchemy import func
 
 def get_enseignant(id_enseignant: int) -> Optional[dict]:

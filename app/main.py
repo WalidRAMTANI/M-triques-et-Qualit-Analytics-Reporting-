@@ -4,37 +4,40 @@ from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 from fastapi.exceptions import RequestValidationError
 from starlette.exceptions import HTTPException as StarletteHTTPException
-import routers.metrics as metrics
-import routers.dashboard as dashboard
-from database import init_database, DatabaseError
-from routers import alerts, reports, comparaison
+from app.database import init_database, DatabaseError
+from app.routers import alerts, reports, comparaison, metrics, dashboard, aavs, sessions, types, activitePedagogique
 
 app = FastAPI(
-    title="Groupe 7 — Métriques Qualité AAV",
-    description="API d'analytics et de reporting pour les équipes pédagogiques.",
+    title="Group 7 — Quality Metrics AAV",
+    description="Analytics and reporting API for pedagogical teams.",
     version="1.0.0"
 )
 
 # ============================================
-# INITIALISATION DE LA BASE DE DONNÉES
+# DATABASE INITIALIZATION
 # ============================================
 @app.on_event("startup")
 def startup():
     """Creates all tables on startup (common + Group 7)."""
-    #init_database()
+    init_database()
 # ============================================
 # ROUTERS
 # ============================================
-# include the alerts router
+# Include the alerts router
 app.include_router(alerts.router, prefix="/alerts", tags=["alerts"])
-# include the reports router
+# Include the reports router
 app.include_router(reports.router, prefix="/reports", tags=["reports"])
-#include the comparaison router
+# Include the comparaison router
 app.include_router(comparaison.router, prefix="/metrics/compare", tags=["comparisons"])
-#include the metrics router
+# Include the metrics router
 app.include_router(metrics.router, prefix="/metrics/aav", tags=["metrics"])
-#include the dashboard router
+# Include the dashboard router
 app.include_router(dashboard.router, prefix="/dashboard", tags=["dashboard"])
+# include all routers with SQLAlchemy ORM
+app.include_router(aavs.router)
+app.include_router(activitePedagogique.router)
+app.include_router(sessions.router)
+app.include_router(types.router)
 # ============================================
 # GESTIONNAIRES D'EXCEPTIONS GLOBAUX
 # ============================================
@@ -76,12 +79,22 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
 @app.exception_handler(DatabaseError)
 async def database_exception_handler(request: Request, exc: DatabaseError):
     """Handles database errors."""
+    error_msg = str(exc)
+    
+    # Check if it's a 404 from HTTPException
+    if "404:" in error_msg:
+        status_code = 404
+        detail = error_msg.replace("404: ", "")
+    else:
+        status_code = 500
+        detail = error_msg
+    
     return JSONResponse(
-        status_code=500,
+        status_code=status_code,
         content={
-            "error": "database_error",
-            "message": "Une erreur est survenue lors de l'accès aux données",
-            "details": {"error": str(exc)},
+            "error": "database_error" if status_code != 404 else "not_found",
+            "message": detail if status_code == 404 else "Une erreur est survenue lors de l'accès aux données",
+            "details": {"error": str(exc)} if status_code != 404 else {},
             "path": str(request.url)
         }
     )

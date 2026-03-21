@@ -1,6 +1,6 @@
 from fastapi import APIRouter, HTTPException
-from services.dashboard_data import get_teacher_stats, get_discipline_stats, get_ontology_cov
-from model.schemas import OntologyCoverage, TeacherDashboard, DisciplineDashboard
+from app.services.dashboard_data import get_teacher_stats, get_discipline_stats, get_ontology_cov
+from app.model.schemas import OntologyCoverage, TeacherDashboard, DisciplineDashboard
 router = APIRouter()
 
 @router.get("/teachers/{id_enseignant}/overview", response_model=TeacherDashboard)

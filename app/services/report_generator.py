@@ -1,13 +1,11 @@
 import base64
 from typing import List, Optional, Any
 from datetime import datetime
-from database import get_db_connection
-from services.metric_calculator import get_all_aavs, get_aav,calculer_couverture, calculer_taux_succes,determiner_utilisabilite, count_attempts, count_distinct_learners
-from database import to_json, RapportRepository
-from services.alert_detector import detecter_aavs_difficiles, detecter_aavs_fragiles,detecter_aavs_inutilises
-from model.model import Rapport, LearnerBase
-from model.schemas import AAVComparaison, ApprenantComparaison, RapportGlobalResponse
-from typing import Optional, List
+from app.database import get_db_connection, to_json, RapportRepository
+from app.services.metric_calculator import get_all_aavs, get_aav, calculer_couverture, calculer_taux_succes, determiner_utilisabilite, count_attempts, count_distinct_learners
+from app.services.alert_detector import detecter_aavs_difficiles, detecter_aavs_fragiles, detecter_aavs_inutilises
+from app.model.model import Rapport, LearnerBase
+from app.model.schemas import AAVComparaison, ApprenantComparaison, RapportGlobalResponse
 
 # helper for pdf
 def to_pdf(data_dict, title="Rapport"):

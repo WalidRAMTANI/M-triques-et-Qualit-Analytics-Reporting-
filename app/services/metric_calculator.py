@@ -1,9 +1,9 @@
 import statistics
 from typing import List, Optional
 from datetime import datetime
-from model.model import MetriqueQualiteAAV
+from app.model.model import MetriqueQualiteAAV
 from sqlalchemy import func
-from database import get_db_connection, from_json, MetriqueQualiteAAVRepository, AAVModel, TentativeModel, MetriqueQualiteAAVModel
+from app.database import get_db_connection, from_json, MetriqueQualiteAAVRepository, AAVModel, TentativeModel, MetriqueQualiteAAVModel
 
 def count_exercices(aav_id: int) -> int:
     """

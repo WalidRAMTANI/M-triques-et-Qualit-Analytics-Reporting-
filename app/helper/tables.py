@@ -113,17 +113,17 @@ SCHEMA_METRIQUE_QUALITE_AAV = """
         nb_apprenants_distincts INTEGER,
         ecart_type_scores REAL,          -- Mesure la variabilité (AAV fragile)
         date_calcul TIMESTAMP,
-        periode_debut TIMESTAMP,         -- Période d'analyse
+        periode_debut TIMESTAMP,         -- Analysis period
         periode_fin TIMESTAMP
     )
 """
 
-# TABLE GROUPE 7 — Alertes générées automatiquement
+# GROUP 7 TABLE — Automatically generated alerts
 SCHEMA_ALERTE_QUALITE = """
     alerte_qualite (
         id_alerte INTEGER PRIMARY KEY,
         type_alerte TEXT,   -- 'difficulte', 'inutilise', 'fragile', 'risque'
-        id_cible INTEGER,   -- ID de l'AAV ou de l'apprenant
+        id_cible INTEGER,   -- ID of the AAV or learner
         nom_cible TEXT,
         severite TEXT,      -- 'faible', 'moyenne', 'haute'
         description TEXT,
@@ -133,7 +133,7 @@ SCHEMA_ALERTE_QUALITE = """
     )
 """
 
-# TABLE GROUPE 7 — Rapports générés à la demande
+# GROUP 7 TABLE — On-demand generated reports
 SCHEMA_RAPPORT_PERIODIQUE = """
     rapport_periodique (
         id_rapport INTEGER PRIMARY KEY,
@@ -142,7 +142,7 @@ SCHEMA_RAPPORT_PERIODIQUE = """
         date_generation TIMESTAMP,
         periode_debut TIMESTAMP,
         periode_fin TIMESTAMP,
-        contenu TEXT,          -- JSON avec les données
+        contenu TEXT,          -- JSON with data
         format_fichier TEXT    -- 'json', 'csv', 'pdf'
     )
 """

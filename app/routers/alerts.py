@@ -1,8 +1,8 @@
 import fastapi
 from fastapi import APIRouter, HTTPException
 from typing import List, Optional
-from services.alert_detector import detecter_aavs_difficiles, detecter_aavs_inutilises, detecter_aavs_fragiles, detecter_apprenants_risque
-from model.schemas import AAVDifficile, AAVInutilise, AAVFragile, ApprenantRisque
+from app.services.alert_detector import detecter_aavs_difficiles, detecter_aavs_inutilises, detecter_aavs_fragiles, detecter_apprenants_risque
+from app.model.schemas import AAVDifficile, AAVInutilise, AAVFragile, ApprenantRisque
 
 router = APIRouter()
 

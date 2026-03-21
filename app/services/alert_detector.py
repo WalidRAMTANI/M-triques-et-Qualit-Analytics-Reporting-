@@ -1,8 +1,8 @@
 import statistics
 from typing import List, Optional
-from database import get_db_connection, ApprenantModel, StatutApprentissageModel, MetriqueQualiteAAVModel
-from services.metric_calculator import calculer_taux_succes, get_all_aavs, count_attempts, get_all_attempts_for_aav
-from model.schemas import AAVDifficile, AAVInutilise, AAVFragile, ApprenantRisque
+from app.database import get_db_connection, ApprenantModel, StatutApprentissageModel, MetriqueQualiteAAVModel
+from app.services.metric_calculator import calculer_taux_succes, get_all_aavs, count_attempts, get_all_attempts_for_aav
+from app.model.schemas import AAVDifficile, AAVInutilise, AAVFragile, ApprenantRisque
 from sqlalchemy import func
 
 def get_apprenants_ontologie(ontologie_id: int) -> List[dict]:
@@ -90,7 +90,7 @@ def calculer_progression(apprenant_id: int) -> float:
         return float(result) if result is not None else 0.0
 
 # ==============================================================
-# FONCTIONS PRINCIPALES — Détection des alertes
+# MAIN FUNCTIONS — Alert detection
 # ==============================================================
 
 def detecter_aavs_difficiles(seuil_taux_succes: float = 0.3) -> List[AAVDifficile]:

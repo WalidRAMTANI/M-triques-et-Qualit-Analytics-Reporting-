@@ -1,8 +1,8 @@
 from fastapi import APIRouter, HTTPException
 from datetime import datetime
-from model.schemas import RapportResponse, RapportRequest, RapportGlobalResponse
-from services.report_generator import generer_rapport_personnalise, generer_rapport_global
-from model.model import Rapport
+from app.model.schemas import RapportResponse, RapportRequest, RapportGlobalResponse
+from app.services.report_generator import generer_rapport_personnalise, generer_rapport_global
+from app.model.model import Rapport
 router = APIRouter()
 
 @router.post("/generate", response_model=Rapport, status_code=201)

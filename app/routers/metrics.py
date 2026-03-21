@@ -1,8 +1,7 @@
 from fastapi import APIRouter, HTTPException
-from model.model import MetriqueQualiteAAV
-from services import metric_calculator
-from services.metric_calculator import calculer_metriques_aav, get_aav, get_metriques_by_aav, get_all_metrics, get_history
-
+from app.model.model import MetriqueQualiteAAV
+from app.services import metric_calculator
+from app.services.metric_calculator import calculer_metriques_aav, get_aav, get_metriques_by_aav, get_all_metrics, get_history
 from typing import Optional
 
 router = APIRouter()
@@ -20,7 +19,7 @@ def metrique_qualite_aav(id_aav: int):
 @router.get("/", response_model=list[MetriqueQualiteAAV])
 #        #score_covering_ressources, taux_succes_moyen, nb_tentatives_total, nb_apprenants_distincts, ecart_type_scores
 def get_all_metrics_route(score_covering_ressources: Optional[float]=None, taux_succes_moyen: Optional[float]=None, est_utilisable: Optional[bool]=None, nb_tentatives_total: Optional[int]=None, nb_apprenants_distincts: Optional[int]=None, ecart_type_scores: Optional[float]=None):
-    """Retrieves all the latest quality metrics for all AAVs."""
+    """Retrieve all latest quality metrics for all AAVs."""
     filtres = {
         "score_covering_ressources": score_covering_ressources,
         "taux_succes_moyen": taux_succes_moyen,

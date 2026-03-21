@@ -1,8 +1,8 @@
 from fastapi import APIRouter, Query, HTTPException
-from model.schemas import AAVComparaison, ApprenantComparaison
-from services.report_generator import collect_data_for_aav, collect_data_for_student
+from app.model.schemas import AAVComparaison, ApprenantComparaison
+from app.services.report_generator import collect_data_for_aav, collect_data_for_student
 from typing import List
-from services.alert_detector import get_apprenants_ontologie, calculer_progression, count_aavs_bloques
+from app.services.alert_detector import get_apprenants_ontologie, calculer_progression, count_aavs_bloques
 router = APIRouter()
 
 @router.get("/aavs", response_model=List[AAVComparaison])

@@ -12,12 +12,6 @@ from sqlalchemy import (
 from sqlalchemy.orm import sessionmaker, Session, declarative_base, relationship
 from sqlalchemy.sql import func
 
-from model.model import MetriqueQualiteAAV, Rapport, Enseignant
-
-# ============================================
-# CONFIGURATION
-# ============================================
-
 Base = declarative_base()
 
 DATABASE_URL = "sqlite:///./platonAAV.db"
@@ -31,7 +25,8 @@ class DatabaseError(Exception):
 
 
 # ============================================
-# MODÈLES SQLALCHEMY
+# SQLALCHEMY MODELS
+# All database models using SQLAlchemy ORM
 # ============================================
 
 class JSONEncodedDict(TypeDecorator):
@@ -140,13 +135,14 @@ class ActivitePedagogiqueModel(Base):
 
 class SessionApprenantModel(Base):
     __tablename__ = "session_apprenant"
-    id_session = Column(Integer, primary_key=True)
+    id_session = Column(Integer, primary_key=True, autoincrement=True)
     id_activite = Column(Integer, ForeignKey("activite_pedagogique.id_activite"))
     id_apprenant = Column(Integer, ForeignKey("apprenant.id_apprenant"))
     date_debut = Column(TIMESTAMP)
     date_fin = Column(TIMESTAMP)
     statut = Column(String(50))
     progression_pourcentage = Column(Float)
+    bilan_session = Column(Text)  # JSON-encoded summary of the session
 
 
 class PromptFabricationAAVModel(Base):
@@ -247,7 +243,7 @@ class EnseignantModel(Base):
 @contextmanager
 def get_db_connection():
     """
-    Context manager SQLAlchemy.
+    Context manager SQLAlchemy for direct database access.
 
     Usage:
         with get_db_connection() as session:
@@ -259,27 +255,48 @@ def get_db_connection():
         session.commit()
     except Exception as e:
         session.rollback()
-        raise DatabaseError(f"Erreur base de données: {str(e)}") from e
+        raise DatabaseError(f"Database error: {str(e)}") from e
     finally:
         session.close()
 
 
-# Alias pour la compatibilité avec les modules qui importent get_db_session
+# FastAPI dependency for database session injection
+def get_db():
+    """
+    FastAPI dependency that provides database session.
+    
+    Usage in routers:
+        @router.get("/")
+        def endpoint(db: Session = Depends(get_db)):
+            # Use db session here
+    """
+    db = SessionLocal()
+    try:
+        yield db
+        db.commit()
+    except Exception as e:
+        db.rollback()
+        raise DatabaseError(f"Database error: {str(e)}") from e
+    finally:
+        db.close()
+
+
+# Alias for backward compatibility
 get_db_session = get_db_connection
 
 
 # ============================================
-# INITIALISATION
+# INITIALIZATION
 # ============================================
 
 def init_database():
-    """Crée toutes les tables définies dans les modèles ORM."""
+    """Create all tables defined in ORM models."""
     Base.metadata.create_all(engine)
-    print("Base de données initialisée avec succès")
+    print("Database initialized successfully")
 
 
 # ============================================
-# FONCTIONS UTILITAIRES JSON
+# JSON UTILITY FUNCTIONS
 # ============================================
 
 def to_json(data: Any) -> Optional[str]:
@@ -326,7 +343,7 @@ class MetriqueQualiteAAVRepository(BaseRepository):
     def __init__(self):
         super().__init__(MetriqueQualiteAAVModel)
 
-    def create(self, data: MetriqueQualiteAAV) -> MetriqueQualiteAAV:
+    def create(self, data):
         """Creates a MetriqueQualiteAAV and returns it with its new ID."""
         with get_db_connection() as session:
             max_id = session.execute(
@@ -370,7 +387,7 @@ class RapportRepository(BaseRepository):
     def __init__(self):
         super().__init__(RapportPeriodiqueModel)
 
-    def create(self, data: Rapport) -> Rapport:
+    def create(self, data):
         """Create a report and return it."""
         now = datetime.now().isoformat()
         periode_debut = data.periode_debut.isoformat() if data.periode_debut is not None else now
@@ -414,7 +431,7 @@ class EnseignantRepository(BaseRepository):
     def __init__(self):
         super().__init__(EnseignantModel)
 
-    def create(self, data: Enseignant) -> Enseignant:
+    def create(self, data):
         with get_db_connection() as session:
             result = session.execute(
                 text("""
