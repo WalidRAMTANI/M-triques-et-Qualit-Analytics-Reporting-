@@ -1,0 +1,14 @@
+Optimisation et refactorisation du code :
+
+
+1. Correction des imprécisions de calcul :
+Des imprécisions ont été détectées dans certaines fonctions effectuant des calculs, des changements ont donc été effectués.
+
+2. Ajout des modèles de réponse Pydantic :
+Certains retours de fonctions manquaient de typage, des modèles Pydantic ont donc été ajoutés pour structurer et valider automatiquement les données renvoyées.
+
+3. Utilisation de l'ORM SQLAlchemy :
+Les requêtes à la base de données n'ont pas encore été transformées avec SQLAlchemy.
+
+4. Manque de documentation et de commentaires :
+Il manque encore des commentaires et des descriptions claires (docstrings) sur plusieurs fonctions, ce qui pourrait rendre la lecture et la compréhension du code plus difficiles pour d'autres développeurs.

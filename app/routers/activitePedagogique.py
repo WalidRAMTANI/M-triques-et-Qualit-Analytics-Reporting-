@@ -356,7 +356,8 @@ def start_activity(activity_id: int, learner_data: dict, db: Session = Depends(g
     session = SessionApprenantModel(
         id_apprenant=learner_id,
         id_activite=activity_id,
-        debut_session=datetime.utcnow(),
+        date_debut=datetime.utcnow(),
+        statut="started"
     )
     
     db.add(session)
@@ -440,8 +441,8 @@ def complete_activity(activity_id: int, session_data: dict, db: Session = Depend
     if not session:
         raise HTTPException(status_code=404, detail="Session not found")
     
-    session.fin_session = datetime.utcnow()
-    
+    session.date_fin = datetime.utcnow()
+    session.statut = "closed"
     # calculate learning summary from all learner attempts
     tentatives = db.query(TentativeModel).filter(
         TentativeModel.id_apprenant == session.id_apprenant

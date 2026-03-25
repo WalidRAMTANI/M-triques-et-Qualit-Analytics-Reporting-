@@ -405,3 +405,23 @@ def test_get_types(client):
 
     assert isinstance(types_data, dict)
     assert "types" in types_data
+
+def test_get_mastery_levels(client):
+    """
+    Teste la récupération des niveaux de maîtrise.
+    """
+    response = client.get("/types/mastery-levels")
+    assert response.status_code == 200
+    data = response.json()
+    assert "levels" in data
+    assert "master" in data["levels"]
+
+def test_get_disciplines(client):
+    """
+    Teste la récupération des disciplines disponibles.
+    """
+    response = client.get("/types/disciplines")
+    assert response.status_code == 200
+    data = response.json()
+    assert "disciplines" in data
+    assert isinstance(data["disciplines"], list)

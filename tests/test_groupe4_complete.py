@@ -513,3 +513,49 @@ class TestIntegration:
         # 7. Close session
         close_response = client.put(f"/sessions/{session_id}/close", json={})
         assert close_response.status_code == 200
+
+# ============================================
+# LEARNER WORKFLOW TESTS
+# ============================================
+
+class TestLearnerActivityWorkflow:
+    """Tests for the specific learner interaction endpoints in activitePedagogique.py"""
+    
+    def test_learner_activity_execution(self, client):
+        """Test the complete workflow of a learner doing an activity (start, attempt, complete)."""
+        # 1. Création d'une activité pour le test
+        create_response = client.post("/activites/", json={
+            "id_activite": 999,
+            "nom": "Activité Apprenant",
+            "type_activite": "pilotee",
+            "discipline": "Programmation"
+        })
+        assert create_response.status_code == 201
+        
+        # 2. Démarrer l'activité (POST /activites/{id}/start)
+        start_response = client.post("/activites/999/start", json={
+            "id_apprenant": 1
+        })
+        assert start_response.status_code == 200
+        session_id = start_response.json()["id_session"]
+        
+        # 3. Soumettre une tentative (POST /activites/{id}/submit-attempt)
+        attempt_response = client.post("/activites/999/submit-attempt", json={
+            "id_exercice_ou_evenement": 1,
+            "id_apprenant": 1,
+            "id_aav_cible": 5,
+            "score_obtenu": 0.85,
+            "est_valide": True,
+            "temps_resolution_secondes": 120
+        })
+        assert attempt_response.status_code == 200
+        assert "id_tentative" in attempt_response.json()
+        
+        # 4. Compléter l'activité (POST /activites/{id}/complete)
+        complete_response = client.post("/activites/999/complete", json={
+            "id_session": session_id
+        })
+        assert complete_response.status_code == 200
+        data = complete_response.json()
+        assert "bilan" in data
+        assert data["bilan"]["total_attempts"] >= 1
