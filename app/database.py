@@ -14,7 +14,7 @@ from sqlalchemy.sql import func
 
 Base = declarative_base()
 
-DATABASE_URL = "sqlite:///./platonAAV.db"
+DATABASE_URL = "sqlite:///platonAAV.db"
 engine = create_engine(DATABASE_URL)
 SessionLocal = sessionmaker(bind=engine, autocommit=False, autoflush=False)
 

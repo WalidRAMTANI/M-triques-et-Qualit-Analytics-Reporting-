@@ -9,10 +9,10 @@ router = APIRouter()
 def generate_rapport_personnalise(request: RapportRequest) -> Rapport:
     """Generates a personalized report (by AAV, learner or discipline)."""
     rapport = generer_rapport_personnalise(
-        type=request.type,
+        type=request.type_rapport,
         id_cible=request.id_cible,
-        debut=request.debut,
-        fin=request.fin,
+        debut=request.periode_debut,
+        fin=request.periode_fin,
         format=request.format
     )
     if not rapport:
