@@ -54,7 +54,9 @@ def get_aav(aav_id: int, db: Session = Depends(get_db)):
     
     Returns:
         dict: AAV dictionary containing all fields including id_aav, nom,
-              libelle_integration, discipline, enseignement and description_markdown.
+              libelle_integration, discipline, enseignement, description_markdown,
+              type_aav, type_evaluation, prerequis_ids, is_active, version,
+              created_at, and updated_at.
     
     Raises:
         HTTPException: 404 error if AAV with given ID is not found.
@@ -71,6 +73,13 @@ def get_aav(aav_id: int, db: Session = Depends(get_db)):
         "discipline": aav.discipline,
         "enseignement": aav.enseignement,
         "description_markdown": aav.description_markdown,
+        "type_aav": getattr(aav, "type_aav", "N/A"),
+        "type_evaluation": getattr(aav, "type_evaluation", "N/A"),
+        "prerequis_ids": getattr(aav, "prerequis_ids", []),
+        "is_active": getattr(aav, "is_active", True),
+        "version": getattr(aav, "version", 1),
+        "created_at": getattr(aav, "created_at", None),
+        "updated_at": getattr(aav, "updated_at", None),
     }
 
 
