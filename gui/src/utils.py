@@ -12,7 +12,8 @@ import httpx
 
 ALERTS_API = "http://localhost:8000/alerts"
 AAVS_API = "http://localhost:8000/aavs"
-
+METRIQUE_API = "http://localhost:8000/metriques"
+SESSION_API = "http://localhost:8000/sessions"
 
 def fetch(path, base_api=ALERTS_API):
     """

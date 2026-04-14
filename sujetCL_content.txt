@@ -1,0 +1,51 @@
+Sujet de Devoir : “L’Architecte du Savoir”
+Création d’un client lourd de gestion d’Ontologies Pédagogiques
+1. contexte
+Pour completer le serveur restfull fait dans la première partie, nous cherchons a proposer une client lourd qui
+permet d’utiliser les interface crud et de voir le contenu de la base de donnée.
+2. Objectifs techniques
+•Consommation d’API : Utiliser la bibliothèque requests pour communiquer avec le serveur.
+•Interface Graphique (GUI) : Utilise le framework que vous avez choisi. N’oublier pas de déposer votre
+document de recherche et d’analyse du framawork qui vous plais le plus.
+•Validation de données : Réutiliser les modèles Pydantic fournis pour valider les saisies utilisateur
+avant envoi.
+•Programmation Orientée Objet : Structurer le code pour séparer la vue (GUI) de la logique de service
+(API).
+3. Fonctionnalités attendues (Cahier des charges)
+Phase 1 : Exploration du Savoir (Le “Dashboard”)
+•Affichage de la liste : Récupérer et afficher tous les AAV disponibles dans une liste ou un tableau
+(Treeview ).
+•Fiche Détail : Lorsqu’on clique sur un AAV, afficher ses détails (ID, Nom, Discipline, Description en
+Markdown).
+•Gestion des Filtres : Permettre de filtrer les AAV par Discipline ou parType(Atomique vs Composite).
+Phase 2 : Édition et Création
+•Formulaire de création : Créer un nouvel AAV via une fenêtre de saisie.
+–Contrainte : Le client doit interdire la création d’un AAV “Composite” s’il n’a pas au moins un enfant
+sélectionné (en respectant votre field_validator ).
+•Édition des prérequis : Pouvoir lier des AAV existants comme prérequis d’un autre.
+Phase 3 : Suivi Apprenant (Mode Simulation)
+•Dashboard Apprenant : Sélectionner un apprenant et afficher son niveau_maitrise global.
+•Enregistrement de réussite : Un bouton “Simuler Tentative” permettant de saisir un score pour un
+exercice et de l’envoyer au serveur.
+4. Barème suggéré (Sur 12 points)
+Critère Points Détails
+Ergonomie & Design 2 pts Clarté de l’interface et facilité de
+navigation.
+Consommation API 3 pts Gestion propre des codes HTTP
+(200, 201, 422, 500) et des
+exceptions réseau.
+Intégrité Pydantic 3 pts Utilisation correcte des classes
+fournies pour valider les
+formulaires.
+Gestion du Graphe 2 pts Capacité à afficher/gérer les
+relations Parents/Enfants et
+Prérequis.
+Qualité du code 1 pts Documentation (docstrings),
+PEP8 et découpage en modules.
+1
+5. Bonus “Expert” (sur 8 points)
+Un des deux sujets suivant ou une meilleur idée a valider avant. * Rendu Markdown : Intégrer un visualiseur
+pour le champ description_markdown .
+•Graph Visualization : Utiliser une bibliothèque comme matplotlib oupyvispour afficher visuellement
+le graphe des prérequis.
+2

@@ -21,7 +21,7 @@ router = APIRouter(tags=["Tentatives"])
 
 
 
-@router.get("/attempts", response_model=List[Tentative])
+@router.get("/", response_model=List[Tentative])
 def list_attempts(
     id_apprenant: Optional[int] = None,
     id_aav_cible: Optional[int] = None,
@@ -59,7 +59,7 @@ def list_attempts(
 
 
 
-@router.get("/attempts/{id}", response_model=Tentative)
+@router.get("/{id}", response_model=Tentative)
 def get_attempt(id: int):
     """
     Récupère une tentative spécifique par son identifiant unique.
@@ -81,7 +81,7 @@ def get_attempt(id: int):
 
 
 
-@router.post("/attempts", response_model=Tentative, status_code=201)
+@router.post("/", response_model=Tentative, status_code=201)
 def create_attempt(payload: TentativeCreate):
     """
     Crée une nouvelle tentative et met à jour le statut d'apprentissage associé.
@@ -144,7 +144,7 @@ def create_attempt(payload: TentativeCreate):
         return Tentative.model_validate(new_attempt)
 
 
-@router.delete("/attempts/{id}", status_code=204)
+@router.delete("/{id}", status_code=204)
 def delete_attempt(id: int):
     """
     Supprime une tentative de la base de données.
@@ -163,7 +163,7 @@ def delete_attempt(id: int):
         session.commit()
     return None
 
-@router.post("/attempts/{id}/process", response_model=Process)
+@router.post("/{id}/process", response_model=Process)
 def process_attempt(id: int):
     """
     Traite une tentative existante pour recalculer la progression de l'élève.

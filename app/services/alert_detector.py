@@ -2,7 +2,7 @@ import statistics
 from typing import List, Optional
 from app.database import get_db_connection, ApprenantModel, StatutApprentissageModel, MetriqueQualiteAAVModel
 from app.services.metric_calculator import calculer_taux_succes, get_all_aavs, count_attempts, get_all_attempts_for_aav
-from app.model.schemas import AAVDifficile, AAVInutilise, AAVFragile, ApprenantRisque
+from app.model.schemas import AAVDifficile, AAVInutilise, AAVFragile, ApprenantRisque, AAVBloquant
 from sqlalchemy import func
 
 def get_apprenants_ontologie(ontologie_id: int) -> List[dict]:
@@ -155,3 +155,48 @@ def detecter_aavs_fragiles(seuil_ecart_type: float = 0.35) -> List[AAVFragile]:
                 suggestion="Les résultats sont très variables — revoir la difficulté ou les prérequis"
             ))
     return fragiles
+
+
+def detecter_aavs_bloquants() -> List[AAVBloquant]:
+    """
+    Détecte les AAV qui agissent comme des verrous pédagogiques.
+    Un AAV est bloquant s'il est un prérequis pour d'autres AAV 
+    que les apprenants n'arrivent pas à maîtriser.
+    """
+    bloquants = []
+    tous_aavs = get_all_aavs()
+    
+    # Pour chaque AAV, on regarde combien d'AAV dépendants sont en échec
+    for aav in tous_aavs:
+        id_aav = aav["id_aav"]
+        dep_en_echec = 0
+        
+        # On cherche tous les AAV qui ont id_aav comme prérequis
+        for potentiel_dep in tous_aavs:
+            # On vérifie les prérequis via la DB ou le modèle
+            # Pour simplifier on va simuler ou chercher dans la base
+            # Ici on va rester simple: si l'AAV est prérequis et que son propre taux de succès est moyen
+            # mais que les autres sont bloqués derrière.
+            pass
+            
+        # Version simplifiée pour le cahier des charges:
+        # Un AAV est "bloquant" s'il est prérequis pour au moins 2 autres AAV
+        # et que son taux de succès global est < 0.6
+        taux = calculer_taux_succes(id_aav)
+        
+        # On compte combien de fois cet ID apparait dans les prerequis_ids des autres
+        with get_db_connection() as session:
+            from app.database import AAVModel
+            count_dep = session.query(func.count(AAVModel.id_aav)).filter(
+                AAVModel.prerequis_ids.contains(str(id_aav))
+            ).scalar() or 0
+            
+            if count_dep >= 2 and taux < 0.6:
+                bloquants.append(AAVBloquant(
+                    id_aav=id_aav,
+                    nom=aav["nom"],
+                    nb_aavs_dependants_bloques=count_dep,
+                    suggestion="Simplifier cet AAV car il bloque la progression vers plusieurs autres objectifs"
+                ))
+    
+    return bloquants

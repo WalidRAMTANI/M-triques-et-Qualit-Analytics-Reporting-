@@ -10,7 +10,7 @@ This file contains all Pydantic models used for:
 All models inherit from BaseModel (Pydantic v2).
 """
 
-from pydantic import BaseModel, Field, field_validator, ConfigDict
+from pydantic import BaseModel, Field, field_validator, model_validator, ConfigDict
 from typing import Optional, List, Union
 from enum import Enum
 from datetime import datetime
@@ -128,6 +128,13 @@ class AAVBase(BaseModel):
         if len(phrase_test) > 250:
             raise ValueError("Label too long for a fluent sentence")
         return v
+
+    @model_validator(mode='after')
+    def check_composite_children(self) -> 'AAVBase':
+        """Un AAV Composite doit avoir au moins un enfant (prérequis)."""
+        if self.type_aav == TypeAAV.COMPOSITE and not self.prerequis_ids:
+            raise ValueError("Un AAV Composite doit avoir au moins un AAV enfant (prérequis) sélectionné.")
+        return self
 
 
 class AAVCreate(AAVBase):
@@ -340,6 +347,14 @@ class ApprenantRisque(BaseModel):
     nom: str
     progression: float
     aavs_bloques: int
+
+
+class AAVBloquant(BaseModel):
+    """Represents a blocking AAV (prerequisite for many unmastered AAVs)."""
+    id_aav: int
+    nom: str
+    nb_aavs_dependants_bloques: int
+    suggestion: str
 
 
 # ============================================================

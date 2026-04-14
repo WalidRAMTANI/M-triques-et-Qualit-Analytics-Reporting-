@@ -1,8 +1,12 @@
 import fastapi
 from fastapi import APIRouter, HTTPException
 from typing import List, Optional
-from app.services.alert_detector import detecter_aavs_difficiles, detecter_aavs_inutilises, detecter_aavs_fragiles, detecter_apprenants_risque
-from app.model.schemas import AAVDifficile, AAVInutilise, AAVFragile, ApprenantRisque
+from app.services.alert_detector import (
+    detecter_aavs_difficiles, detecter_aavs_inutilises, 
+    detecter_aavs_fragiles, detecter_apprenants_risque,
+    detecter_aavs_bloquants
+)
+from app.model.schemas import AAVDifficile, AAVInutilise, AAVFragile, ApprenantRisque, AAVBloquant
 
 router = APIRouter()
 
@@ -78,3 +82,25 @@ def get_students_at_risk(id_ontologie: int) -> List[ApprenantRisque]:
     if not apprenants_risque:
         raise HTTPException(status_code=404, detail=f"Aucun apprenant à risque trouvé pour l'ontologie {id_ontologie}.")
     return apprenants_risque
+
+@router.get("/blocking-aavs", response_model=List[AAVBloquant])
+def get_blocking_aavs() -> List[AAVBloquant]:
+    """
+    Récupère la liste des AAV qui bloquent la progression (prérequis difficiles).
+    """
+    bloquants = detecter_aavs_bloquants()
+    if not bloquants:
+        raise HTTPException(status_code=404, detail="Aucun AAV bloquant détecté.")
+    return bloquants
+
+@router.get("/", response_model=dict)
+def list_all_alerts():
+    """
+    Récupère un résumé de toutes les alertes par catégorie.
+    """
+    return {
+        "difficult": detecter_aavs_difficiles(),
+        "unused": detecter_aavs_inutilises(),
+        "fragile": detecter_aavs_fragiles(),
+        "blocking": detecter_aavs_bloquants()
+    }
