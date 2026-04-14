@@ -239,6 +239,45 @@ class EnseignantModel(Base):
     aavs = relationship("AAVModel", back_populates="enseignant")
 
 
+class ExternalPrerequisiteValidationModel(Base):
+    __tablename__ = "external_prerequisite_validation"
+    id_apprenant = Column(Integer, ForeignKey("apprenant.id_apprenant"), primary_key=True)
+    code_prerequis = Column(String(100), primary_key=True)
+    validated_by = Column(String(100))
+    notes = Column(Text)
+    date_validation = Column(TIMESTAMP, server_default=func.current_timestamp())
+
+
+class TentativeExerciceModel(Base):
+    __tablename__ = "tentative_exercice"
+    id_tentative = Column(Integer, primary_key=True, autoincrement=True)
+    id_exercice = Column(Integer, ForeignKey("exercice_instance.id_exercice"), nullable=False)
+    id_apprenant = Column(Integer, ForeignKey("apprenant.id_apprenant"))
+    reponse_donnee = Column(Text)
+    score_obtenu = Column(Float)
+    feedback_genere = Column(Text)
+    date_tentative = Column(TIMESTAMP, server_default=func.current_timestamp())
+
+
+
+class NavigationCacheModel(Base):
+    __tablename__ = "navigation_cache"
+    id_apprenant = Column(Integer, ForeignKey("apprenant.id_apprenant"), primary_key=True)
+    id_aav = Column(Integer, ForeignKey("aav.id_aav"), primary_key=True)
+    categorie = Column(String(50), primary_key=True)
+    dernier_calcul = Column(TIMESTAMP, server_default=func.current_timestamp())
+    raison_blocage = Column(JSONEncodedDict)
+
+
+class RevisionHistoryModel(Base):
+    __tablename__ = "revision_history"
+    id_apprenant = Column(Integer, ForeignKey("apprenant.id_apprenant"), primary_key=True)
+    id_aav = Column(Integer, ForeignKey("aav.id_aav"), primary_key=True)
+    prochaine_revision_prevue = Column(TIMESTAMP)
+    date_derniere_revision = Column(TIMESTAMP)
+
+
+
 # ============================================
 # CONNEXION / SESSION
 # ============================================
@@ -246,15 +285,101 @@ class EnseignantModel(Base):
 @contextmanager
 def get_db_connection():
     """
-    Context manager SQLAlchemy for direct database access.
-
-    Usage:
-        with get_db_connection() as session:
-            results = session.execute(text("SELECT * FROM aav")).fetchall()
+    Context manager providing a compatibility wrapper around SQLAlchemy session.
+    Supports both ORM usage and raw SQL usage with .cursor() and ? placeholders.
     """
     session = SessionLocal()
+    
+    class ConnectionWrapper:
+        def __init__(self, session):
+            self.session = session
+            self.result = None
+
+        def cursor(self):
+            return self
+
+        def execute(self, sql, params=None):
+            """
+            Exécute une requête SQL brute avec support des placeholders '?'.
+            Convertit les '?' en paramètres nommés pour SQLAlchemy.
+
+            Args:
+                sql (str): La requête SQL.
+                params (Optional[Union[dict, list, tuple, Any]]): Les paramètres de la requête.
+
+            Returns:
+                ConnectionWrapper: L'instance elle-même pour chaînage.
+            """
+            from sqlalchemy import text
+            import re
+            
+            # Handle ? placeholders by converting them to :p0, :p1...
+            if params:
+                if isinstance(params, (list, tuple)):
+                    count = [0]
+                    def replace_func(m):
+                        res = f":p{count[0]}"
+                        count[0] += 1
+                        return res
+                    sql = re.sub(r'\?', replace_func, sql)
+                    params = {f"p{i}": v for i, v in enumerate(params)}
+                elif not isinstance(params, dict):
+                    # Single param case
+                    sql = re.sub(r'\?', ":p0", sql)
+                    params = {"p0": params}
+                
+                self.result = self.session.execute(text(sql), params)
+            else:
+                self.result = self.session.execute(text(sql))
+            return self
+
+        def fetchone(self):
+            """Récupère une seule ligne du résultat sous forme de dictionnaire."""
+            if not self.result: return None
+            row = self.result.fetchone()
+            return row._mapping if row else None
+
+        def fetchall(self):
+            """Récupère toutes les lignes du résultat sous forme d'une liste de dictionnaires."""
+            if not self.result: return []
+            return [r._mapping for r in self.result.fetchall()]
+
+        @property
+        def lastrowid(self):
+            return self.result.lastrowid if self.result else None
+
+        def commit(self):
+            self.session.commit()
+
+        def rollback(self):
+            self.session.rollback()
+
+        def close(self):
+            self.session.close()
+
+        # Support ORM session methods
+        def query(self, *args, **kwargs):
+            return self.session.query(*args, **kwargs)
+        
+        def get(self, *args, **kwargs):
+            return self.session.get(*args, **kwargs)
+        
+        def add(self, *args, **kwargs):
+            return self.session.add(*args, **kwargs)
+        
+        def delete(self, *args, **kwargs):
+            return self.session.delete(*args, **kwargs)
+        
+        def flush(self, *args, **kwargs):
+            return self.session.flush(*args, **kwargs)
+
+        def refresh(self, *args, **kwargs):
+            return self.session.refresh(*args, **kwargs)
+
+
+    wrapper = ConnectionWrapper(session)
     try:
-        yield session
+        yield wrapper
         session.commit()
     except Exception as e:
         session.rollback()
@@ -303,10 +428,12 @@ def init_database():
 # ============================================
 
 def to_json(data: Any) -> Optional[str]:
+    """Sérialise une donnée Python en chaîne JSON (UTF-8)."""
     return json.dumps(data, ensure_ascii=False) if data is not None else None
 
 
 def from_json(json_str: Optional[str]) -> Any:
+    """Désérialise une chaîne JSON en objet Python."""
     return json.loads(json_str) if json_str is not None else None
 
 
@@ -319,10 +446,12 @@ class BaseRepository:
         self.model = model
 
     def get_by_id(self, id_value: int) -> Optional[Any]:
+        """Récupère une entité par son identifiant via l'ORM."""
         with get_db_connection() as db:
             return db.get(self.model, id_value)
 
     def get_all(self, limit: int = 100, offset: int = 0) -> List[Any]:
+        """Récupère toutes les entités avec pagination."""
         with get_db_connection() as db:
             return db.query(self.model).offset(offset).limit(limit).all()
 

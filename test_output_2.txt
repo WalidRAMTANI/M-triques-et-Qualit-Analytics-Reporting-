@@ -1,0 +1,70 @@
+/Users/ramtani/Library/Python/3.9/lib/python/site-packages/urllib3/__init__.py:35: NotOpenSSLWarning: urllib3 v2 only supports OpenSSL 1.1.1+, currently the 'ssl' module is compiled with 'LibreSSL 2.8.3'. See: https://github.com/urllib3/urllib3/issues/3020
+  warnings.warn(
+Database initialized successfully
+============================= test session starts ==============================
+platform darwin -- Python 3.9.6, pytest-8.4.2, pluggy-1.6.0
+rootdir: /Users/ramtani/Desktop/projet_python
+configfile: pytest.ini
+plugins: langsmith-0.4.25, anyio-4.10.0
+DEBUG: DATABASE_URL=sqlite:////Users/ramtani/Desktop/projet_python/platonAAV.db
+collected 1 item
+
+tests/test_exercise_engine.py DEBUG: DATABASE_URL=sqlite:////Users/ramtani/Desktop/projet_python/platonAAV.db
+FAILED: {'error': 'http_error', 'message': 'Database error: 2 validation errors for PromptFabricationAAV\nversion_prompt\n  Input should be a valid integer [type=int_type, input_value=None, input_type=NoneType]\n    For further information visit https://errors.pydantic.dev/2.11/v/int_type\nmetadata\n  Input should be a valid string [type=string_type, input_value=MetaData(), input_type=MetaData]\n    For further information visit https://errors.pydantic.dev/2.11/v/string_type', 'status_code': 500, 'path': 'http://testserver/aavs/1/prompts'}
+F
+
+=================================== FAILURES ===================================
+________________________ test_get_prompts_for_aav_real _________________________
+
+db_session = <sqlalchemy.orm.session.Session object at 0x10afe4a30>
+
+    def test_get_prompts_for_aav_real(db_session):
+        from app.database import DATABASE_URL
+        print(f"DEBUG: DATABASE_URL={DATABASE_URL}")
+        aav = mock_aav(id_aav=1)
+        prompt = mock_prompt(id_prompt=1, id_aav=1)
+        db_session.add(aav)
+        db_session.add(prompt)
+        db_session.commit()
+    
+        response = client.get("/aavs/1/prompts")
+        if response.status_code != 200:
+            print(f"FAILED: {response.json()}")
+>       assert response.status_code == 200
+E       assert 500 == 200
+E        +  where 500 = <Response [500 Internal Server Error]>.status_code
+
+tests/test_exercise_engine.py:65: AssertionError
+=============================== warnings summary ===============================
+../../Library/Python/3.9/lib/python/site-packages/pydantic/_internal/_config.py:323
+../../Library/Python/3.9/lib/python/site-packages/pydantic/_internal/_config.py:323
+../../Library/Python/3.9/lib/python/site-packages/pydantic/_internal/_config.py:323
+../../Library/Python/3.9/lib/python/site-packages/pydantic/_internal/_config.py:323
+../../Library/Python/3.9/lib/python/site-packages/pydantic/_internal/_config.py:323
+../../Library/Python/3.9/lib/python/site-packages/pydantic/_internal/_config.py:323
+../../Library/Python/3.9/lib/python/site-packages/pydantic/_internal/_config.py:323
+  /Users/ramtani/Library/Python/3.9/lib/python/site-packages/pydantic/_internal/_config.py:323: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.11/migration/
+    warnings.warn(DEPRECATION_MESSAGE, DeprecationWarning)
+
+app/main.py:24
+  /Users/ramtani/Desktop/projet_python/app/main.py:24: DeprecationWarning: 
+          on_event is deprecated, use lifespan event handlers instead.
+  
+          Read more about it in the
+          [FastAPI docs for Lifespan Events](https://fastapi.tiangolo.com/advanced/events/).
+          
+    @app.on_event("startup")
+
+../../Library/Python/3.9/lib/python/site-packages/fastapi/applications.py:4579
+  /Users/ramtani/Library/Python/3.9/lib/python/site-packages/fastapi/applications.py:4579: DeprecationWarning: 
+          on_event is deprecated, use lifespan event handlers instead.
+  
+          Read more about it in the
+          [FastAPI docs for Lifespan Events](https://fastapi.tiangolo.com/advanced/events/).
+          
+    return self.router.on_event(event_type)
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED tests/test_exercise_engine.py::test_get_prompts_for_aav_real - assert ...
+======================== 1 failed, 9 warnings in 0.37s =========================

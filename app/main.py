@@ -5,7 +5,12 @@ from fastapi.responses import JSONResponse
 from fastapi.exceptions import RequestValidationError
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from app.database import init_database, DatabaseError
-from app.routers import alerts, reports, comparaison, metrics, dashboard, aavs, sessions, types, activitePedagogique
+from app.routers import (
+    alerts, reports, comparaison, metrics, dashboard, 
+    aavs, sessions, types, activitePedagogique,
+    attempts, exerciseEngine, learners, navigation,
+    ontologies, promptFabricationAAV, remediation, statuts
+)
 
 app = FastAPI(
     title="Group 7 — Quality Metrics AAV",
@@ -23,21 +28,25 @@ def startup():
 # ============================================
 # ROUTERS
 # ============================================
-# Include the alerts router
 app.include_router(alerts.router, prefix="/alerts", tags=["alerts"])
-# Include the reports router
 app.include_router(reports.router, prefix="/reports", tags=["reports"])
-# Include the comparaison router
 app.include_router(comparaison.router, prefix="/metrics/compare", tags=["comparisons"])
-# Include the metrics router
 app.include_router(metrics.router, prefix="/metrics/aav", tags=["metrics"])
-# Include the dashboard router
 app.include_router(dashboard.router, prefix="/dashboard", tags=["dashboard"])
-# include all routers with SQLAlchemy ORM
 app.include_router(aavs.router)
 app.include_router(activitePedagogique.router)
 app.include_router(sessions.router)
 app.include_router(types.router)
+
+# Missing routers from other groups
+app.include_router(attempts.router)
+app.include_router(exerciseEngine.router)
+app.include_router(learners.router)
+app.include_router(navigation.router)
+app.include_router(ontologies.router)
+app.include_router(promptFabricationAAV.router)
+app.include_router(remediation.router)
+app.include_router(statuts.router)
 # ============================================
 # GESTIONNAIRES D'EXCEPTIONS GLOBAUX
 # ============================================
@@ -102,11 +111,15 @@ async def database_exception_handler(request: Request, exc: DatabaseError):
 @app.exception_handler(Exception)
 async def general_exception_handler(request: Request, exc: Exception):
     """Catches all unhandled exceptions."""
+    import traceback
+    traceback.print_exc()
     return JSONResponse(
         status_code=500,
         content={
             "error": "internal_error",
             "message": "Une erreur interne est survenue",
+            "details": str(exc),
             "path": str(request.url)
         }
     )
+

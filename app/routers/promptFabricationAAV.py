@@ -4,7 +4,8 @@ from fastapi import APIRouter, HTTPException, Query
 from typing import List, Optional
 
 from app.model.model import PromptFabricationAAV, PromptCreate, PromptUpdate
-from app.database import get_db_connection, BaseRepository, to_json, PromptFabricationAAVModel
+from app.database import get_db_connection, BaseRepository, to_json, PromptFabricationAAVModel, AAVModel
+
 
 
 router = APIRouter(
@@ -25,49 +26,36 @@ class PromptRepository(BaseRepository):
 
     def create(self, data: dict) -> int:
         """Crée un prompt et retourne son ID."""
-        with get_db_connection() as conn:
-            cursor = conn.cursor()
-            cursor.execute("""
-                INSERT INTO prompt_fabrication_aav
-                    (cible_aav_id, type_exercice_genere, prompt_texte,
-                     version_prompt, created_by, is_active, metadata)
-                VALUES (?, ?, ?, ?, ?, ?, ?)
-            """, (
-                data["cible_aav_id"],
-                data.get("type_exercice_genere"),
-                data["prompt_texte"],
-                data.get("version_prompt", 1),
-                data.get("created_by"),
-                data.get("is_active", True),
-                data.get("metadata"),
-            ))
-            return cursor.lastrowid
+        with get_db_connection() as session:
+            new_prompt = PromptFabricationAAVModel(
+                cible_aav_id=data["cible_aav_id"],
+                type_exercice_genere=data.get("type_exercice_genere"),
+                prompt_texte=data["prompt_texte"],
+                version_prompt=data.get("version_prompt", 1),
+                created_by=data.get("created_by"),
+                is_active=data.get("is_active", True),
+                metadata=data.get("metadata")
+            )
+            session.add(new_prompt)
+            session.commit()
+            session.refresh(new_prompt)
+            return new_prompt.id_prompt
+
 
     def update(self, id_prompt: int, data: dict) -> bool:
         """Met à jour un prompt (partiellement ou complètement)."""
-        with get_db_connection() as conn:
-            cursor = conn.cursor()
-
-            fields = []
-            values = []
-            for key, value in data.items():
-                if value is not None:
-                    fields.append(f"{key} = ?")
-                    if isinstance(value, list):
-                        value = to_json(value)
-                    values.append(value)
-
-            if not fields:
+        with get_db_connection() as session:
+            obj = session.query(PromptFabricationAAVModel).filter(PromptFabricationAAVModel.id_prompt == id_prompt).first()
+            if not obj:
                 return False
+            
+            for key, value in data.items():
+                if hasattr(obj, key):
+                    setattr(obj, key, value)
+            
+            session.commit()
+            return True
 
-            values.append(id_prompt)
-            query = (
-                f"UPDATE prompt_fabrication_aav "
-                f"SET {', '.join(fields)} "
-                f"WHERE id_prompt = ?"
-            )
-            cursor.execute(query, values)
-            return cursor.rowcount > 0
 
 
 # Instance du repository
@@ -80,11 +68,10 @@ repo = PromptRepository()
 
 def _get_aav(id_aav: int) -> Optional[dict]:
     """Récupère un AAV par son ID, retourne None s'il n'existe pas."""
-    with get_db_connection() as conn:
-        cursor = conn.cursor()
-        cursor.execute("SELECT * FROM aav WHERE id_aav = ?", (id_aav,))
-        row = cursor.fetchone()
-        return dict(row) if row else None
+    with get_db_connection() as session:
+        obj = session.query(AAVModel).filter(AAVModel.id_aav == id_aav).first()
+        return {c.name: getattr(obj, c.name) for c in obj.__table__.columns} if obj else None
+
 
 
 # ============================================
@@ -93,27 +80,19 @@ def _get_aav(id_aav: int) -> Optional[dict]:
 
 @router.get("/", response_model=List[PromptFabricationAAV])
 def list_prompts(
-    is_active: Optional[bool] = Query(
-        None, description="Filtrer par statut actif"
-    ),
-    limit: int = Query(
-        100, ge=1, le=1000, description="Nombre maximum de résultats"
-    ),
-    offset: int = Query(0, ge=0, description="Offset pour la pagination"),
+    is_active: Optional[bool] = Query(None, description="Filtrer par statut actif"),
+    limit: int = Query(100, ge=1, le=1000, description="Nombre maximum de résultats"),
+    offset: int = Query(0, ge=0, description="Offset pour la pagination")
 ):
     """Liste tous les prompts de fabrication."""
-    with get_db_connection() as conn:
-        cursor = conn.cursor()
-        query = "SELECT * FROM prompt_fabrication_aav WHERE 1=1"
-        params = []
+    with get_db_connection() as session:
+        query = session.query(PromptFabricationAAVModel)
         if is_active is not None:
-            query += " AND is_active = ?"
-            params.append(1 if is_active else 0)
-        query += " LIMIT ? OFFSET ?"
-        params.extend([limit, offset])
-        cursor.execute(query, params)
-        rows = cursor.fetchall()
-    return [PromptFabricationAAV(**dict(row)) for row in rows]
+            query = query.filter(PromptFabricationAAVModel.is_active == is_active)
+        
+        rows = query.offset(offset).limit(limit).all()
+        return [PromptFabricationAAV.model_validate(r) for r in rows]
+
 
 
 @router.get("/{id_prompt}", response_model=PromptFabricationAAV)
@@ -168,11 +147,10 @@ def delete_prompt(id_prompt: int):
     """Désactive (soft delete) un prompt. Retourne 204 No Content."""
     if not repo.get_by_id(id_prompt):
         raise HTTPException(status_code=404, detail="Prompt non trouvé")
-    with get_db_connection() as conn:
-        cursor = conn.cursor()
-        cursor.execute(
-            "UPDATE prompt_fabrication_aav SET is_active = 0"
-            " WHERE id_prompt = ?",
-            (id_prompt,),
-        )
+    with get_db_connection() as session:
+        obj = session.query(PromptFabricationAAVModel).filter(PromptFabricationAAVModel.id_prompt == id_prompt).first()
+        if obj:
+            obj.is_active = False
+            session.commit()
     return None
+

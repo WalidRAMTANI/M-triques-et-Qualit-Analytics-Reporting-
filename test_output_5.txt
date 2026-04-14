@@ -1,0 +1,643 @@
+/Users/ramtani/Library/Python/3.9/lib/python/site-packages/urllib3/__init__.py:35: NotOpenSSLWarning: urllib3 v2 only supports OpenSSL 1.1.1+, currently the 'ssl' module is compiled with 'LibreSSL 2.8.3'. See: https://github.com/urllib3/urllib3/issues/3020
+  warnings.warn(
+Database initialized successfully
+============================= test session starts ==============================
+platform darwin -- Python 3.9.6, pytest-8.4.2, pluggy-1.6.0
+rootdir: /Users/ramtani/Desktop/projet_python
+configfile: pytest.ini
+plugins: langsmith-0.4.25, anyio-4.10.0
+collected 3 items
+
+tests/test_attempts_complete.py Traceback (most recent call last):
+  File "/Users/ramtani/Library/Python/3.9/lib/python/site-packages/starlette/middleware/errors.py", line 164, in __call__
+    await self.app(scope, receive, _send)
+  File "/Users/ramtani/Library/Python/3.9/lib/python/site-packages/starlette/middleware/exceptions.py", line 63, in __call__
+    await wrap_app_handling_exceptions(self.app, conn)(scope, receive, send)
+  File "/Users/ramtani/Library/Python/3.9/lib/python/site-packages/starlette/_exception_handler.py", line 53, in wrapped_app
+    raise exc
+  File "/Users/ramtani/Library/Python/3.9/lib/python/site-packages/starlette/_exception_handler.py", line 42, in wrapped_app
+    await app(scope, receive, sender)
+  File "/Users/ramtani/Library/Python/3.9/lib/python/site-packages/fastapi/middleware/asyncexitstack.py", line 18, in __call__
+    await self.app(scope, receive, send)
+  File "/Users/ramtani/Library/Python/3.9/lib/python/site-packages/starlette/routing.py", line 716, in __call__
+    await self.middleware_stack(scope, receive, send)
+  File "/Users/ramtani/Library/Python/3.9/lib/python/site-packages/starlette/routing.py", line 736, in app
+    await route.handle(scope, receive, send)
+  File "/Users/ramtani/Library/Python/3.9/lib/python/site-packages/starlette/routing.py", line 290, in handle
+    await self.app(scope, receive, send)
+  File "/Users/ramtani/Library/Python/3.9/lib/python/site-packages/fastapi/routing.py", line 121, in app
+    await wrap_app_handling_exceptions(app, request)(scope, receive, send)
+  File "/Users/ramtani/Library/Python/3.9/lib/python/site-packages/starlette/_exception_handler.py", line 53, in wrapped_app
+    raise exc
+  File "/Users/ramtani/Library/Python/3.9/lib/python/site-packages/starlette/_exception_handler.py", line 42, in wrapped_app
+    await app(scope, receive, sender)
+  File "/Users/ramtani/Library/Python/3.9/lib/python/site-packages/fastapi/routing.py", line 107, in app
+    response = await f(request)
+  File "/Users/ramtani/Library/Python/3.9/lib/python/site-packages/fastapi/routing.py", line 426, in app
+    raw_response = await run_endpoint_function(
+  File "/Users/ramtani/Library/Python/3.9/lib/python/site-packages/fastapi/routing.py", line 316, in run_endpoint_function
+    return await run_in_threadpool(dependant.call, **values)
+  File "/Users/ramtani/Library/Python/3.9/lib/python/site-packages/starlette/concurrency.py", line 38, in run_in_threadpool
+    return await anyio.to_thread.run_sync(func)
+  File "/Users/ramtani/Library/Python/3.9/lib/python/site-packages/anyio/to_thread.py", line 56, in run_sync
+    return await get_async_backend().run_sync_in_worker_thread(
+  File "/Users/ramtani/Library/Python/3.9/lib/python/site-packages/anyio/_backends/_asyncio.py", line 2476, in run_sync_in_worker_thread
+    return await future
+  File "/Users/ramtani/Library/Python/3.9/lib/python/site-packages/anyio/_backends/_asyncio.py", line 967, in run
+    result = context.run(func, *args)
+  File "/Users/ramtani/Desktop/projet_python/app/routers/attempts.py", line 45, in list_attempts
+    return [Tentative.model_validate(r) for r in results]
+  File "/Users/ramtani/Desktop/projet_python/app/routers/attempts.py", line 45, in <listcomp>
+    return [Tentative.model_validate(r) for r in results]
+  File "/Users/ramtani/Library/Python/3.9/lib/python/site-packages/pydantic/main.py", line 705, in model_validate
+    return cls.__pydantic_validator__.validate_python(
+pydantic_core._pydantic_core.ValidationError: 1 validation error for Tentative
+metadata
+  Input should be a valid dictionary [type=dict_type, input_value=MetaData(), input_type=MetaData]
+    For further information visit https://errors.pydantic.dev/2.11/v/dict_type
+FFF
+
+=================================== FAILURES ===================================
+___________________________ test_list_attempts_real ____________________________
+
+db_session = <sqlalchemy.orm.session.Session object at 0x10d938ca0>
+mock_db_connection = <MagicMock name='get_db_connection' id='4522741328'>
+
+    def test_list_attempts_real(db_session, mock_db_connection):
+        mock_att = TentativeModel(
+            id=1, id_exercice_ou_evenement=101, id_apprenant=1, id_aav_cible=1,
+            score_obtenu=0.8, date_tentative=datetime.now(), est_valide=True
+        )
+        db_session.add(mock_att)
+        db_session.commit()
+    
+>       response = client.get("/attempts")
+
+tests/test_attempts_complete.py:39: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+../../Library/Python/3.9/lib/python/site-packages/starlette/testclient.py:479: in get
+    return super().get(
+../../Library/Python/3.9/lib/python/site-packages/httpx/_client.py:1053: in get
+    return self.request(
+../../Library/Python/3.9/lib/python/site-packages/starlette/testclient.py:451: in request
+    return super().request(
+../../Library/Python/3.9/lib/python/site-packages/httpx/_client.py:825: in request
+    return self.send(request, auth=auth, follow_redirects=follow_redirects)
+../../Library/Python/3.9/lib/python/site-packages/httpx/_client.py:914: in send
+    response = self._send_handling_auth(
+../../Library/Python/3.9/lib/python/site-packages/httpx/_client.py:942: in _send_handling_auth
+    response = self._send_handling_redirects(
+../../Library/Python/3.9/lib/python/site-packages/httpx/_client.py:979: in _send_handling_redirects
+    response = self._send_single_request(request)
+../../Library/Python/3.9/lib/python/site-packages/httpx/_client.py:1014: in _send_single_request
+    response = transport.handle_request(request)
+../../Library/Python/3.9/lib/python/site-packages/starlette/testclient.py:354: in handle_request
+    raise exc
+../../Library/Python/3.9/lib/python/site-packages/starlette/testclient.py:351: in handle_request
+    portal.call(self.app, scope, receive, send)
+../../Library/Python/3.9/lib/python/site-packages/anyio/from_thread.py:291: in call
+    return cast(T_Retval, self.start_task_soon(func, *args).result())
+/Applications/Xcode.app/Contents/Developer/Library/Frameworks/Python3.framework/Versions/3.9/lib/python3.9/concurrent/futures/_base.py:445: in result
+    return self.__get_result()
+/Applications/Xcode.app/Contents/Developer/Library/Frameworks/Python3.framework/Versions/3.9/lib/python3.9/concurrent/futures/_base.py:390: in __get_result
+    raise self._exception
+../../Library/Python/3.9/lib/python/site-packages/anyio/from_thread.py:222: in _call_func
+    retval = await retval_or_awaitable
+../../Library/Python/3.9/lib/python/site-packages/fastapi/applications.py:1138: in __call__
+    await super().__call__(scope, receive, send)
+../../Library/Python/3.9/lib/python/site-packages/starlette/applications.py:113: in __call__
+    await self.middleware_stack(scope, receive, send)
+../../Library/Python/3.9/lib/python/site-packages/starlette/middleware/errors.py:186: in __call__
+    raise exc
+../../Library/Python/3.9/lib/python/site-packages/starlette/middleware/errors.py:164: in __call__
+    await self.app(scope, receive, _send)
+../../Library/Python/3.9/lib/python/site-packages/starlette/middleware/exceptions.py:63: in __call__
+    await wrap_app_handling_exceptions(self.app, conn)(scope, receive, send)
+../../Library/Python/3.9/lib/python/site-packages/starlette/_exception_handler.py:53: in wrapped_app
+    raise exc
+../../Library/Python/3.9/lib/python/site-packages/starlette/_exception_handler.py:42: in wrapped_app
+    await app(scope, receive, sender)
+../../Library/Python/3.9/lib/python/site-packages/fastapi/middleware/asyncexitstack.py:18: in __call__
+    await self.app(scope, receive, send)
+../../Library/Python/3.9/lib/python/site-packages/starlette/routing.py:716: in __call__
+    await self.middleware_stack(scope, receive, send)
+../../Library/Python/3.9/lib/python/site-packages/starlette/routing.py:736: in app
+    await route.handle(scope, receive, send)
+../../Library/Python/3.9/lib/python/site-packages/starlette/routing.py:290: in handle
+    await self.app(scope, receive, send)
+../../Library/Python/3.9/lib/python/site-packages/fastapi/routing.py:121: in app
+    await wrap_app_handling_exceptions(app, request)(scope, receive, send)
+../../Library/Python/3.9/lib/python/site-packages/starlette/_exception_handler.py:53: in wrapped_app
+    raise exc
+../../Library/Python/3.9/lib/python/site-packages/starlette/_exception_handler.py:42: in wrapped_app
+    await app(scope, receive, sender)
+../../Library/Python/3.9/lib/python/site-packages/fastapi/routing.py:107: in app
+    response = await f(request)
+../../Library/Python/3.9/lib/python/site-packages/fastapi/routing.py:426: in app
+    raw_response = await run_endpoint_function(
+../../Library/Python/3.9/lib/python/site-packages/fastapi/routing.py:316: in run_endpoint_function
+    return await run_in_threadpool(dependant.call, **values)
+../../Library/Python/3.9/lib/python/site-packages/starlette/concurrency.py:38: in run_in_threadpool
+    return await anyio.to_thread.run_sync(func)
+../../Library/Python/3.9/lib/python/site-packages/anyio/to_thread.py:56: in run_sync
+    return await get_async_backend().run_sync_in_worker_thread(
+../../Library/Python/3.9/lib/python/site-packages/anyio/_backends/_asyncio.py:2476: in run_sync_in_worker_thread
+    return await future
+../../Library/Python/3.9/lib/python/site-packages/anyio/_backends/_asyncio.py:967: in run
+    result = context.run(func, *args)
+app/routers/attempts.py:45: in list_attempts
+    return [Tentative.model_validate(r) for r in results]
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+.0 = <list_iterator object at 0x10dae9c70>
+
+>   return [Tentative.model_validate(r) for r in results]
+E   pydantic_core._pydantic_core.ValidationError: 1 validation error for Tentative
+E   metadata
+E     Input should be a valid dictionary [type=dict_type, input_value=MetaData(), input_type=MetaData]
+E       For further information visit https://errors.pydantic.dev/2.11/v/dict_type
+
+app/routers/attempts.py:45: ValidationError
+___________________________ test_create_attempt_real ___________________________
+
+self = <sqlalchemy.engine.base.Connection object at 0x10e2a8d00>
+dialect = <sqlalchemy.dialects.sqlite.pysqlite.SQLiteDialect_pysqlite object at 0x10c768c10>
+context = <sqlalchemy.dialects.sqlite.base.SQLiteExecutionContext object at 0x10e181c40>
+statement = <sqlalchemy.dialects.sqlite.base.SQLiteCompiler object at 0x10e2a8e80>
+parameters = [(1, 'AAV1', None, None, None, None, ...)]
+
+    def _exec_single_context(
+        self,
+        dialect: Dialect,
+        context: ExecutionContext,
+        statement: Union[str, Compiled],
+        parameters: Optional[_AnyMultiExecuteParams],
+    ) -> CursorResult[Any]:
+        """continue the _execute_context() method for a single DBAPI
+        cursor.execute() or cursor.executemany() call.
+    
+        """
+        if dialect.bind_typing is BindTyping.SETINPUTSIZES:
+            generic_setinputsizes = context._prepare_set_input_sizes()
+    
+            if generic_setinputsizes:
+                try:
+                    dialect.do_set_input_sizes(
+                        context.cursor, generic_setinputsizes, context
+                    )
+                except BaseException as e:
+                    self._handle_dbapi_exception(
+                        e, str(statement), parameters, None, context
+                    )
+    
+        cursor, str_statement, parameters = (
+            context.cursor,
+            context.statement,
+            context.parameters,
+        )
+    
+        effective_parameters: Optional[_AnyExecuteParams]
+    
+        if not context.executemany:
+            effective_parameters = parameters[0]
+        else:
+            effective_parameters = parameters
+    
+        if self._has_events or self.engine._has_events:
+            for fn in self.dispatch.before_cursor_execute:
+                str_statement, effective_parameters = fn(
+                    self,
+                    cursor,
+                    str_statement,
+                    effective_parameters,
+                    context,
+                    context.executemany,
+                )
+    
+        if self._echo:
+            self._log_info(str_statement)
+    
+            stats = context._get_cache_stats()
+    
+            if not self.engine.hide_parameters:
+                self._log_info(
+                    "[%s] %r",
+                    stats,
+                    sql_util._repr_params(
+                        effective_parameters,
+                        batches=10,
+                        ismulti=context.executemany,
+                    ),
+                )
+            else:
+                self._log_info(
+                    "[%s] [SQL parameters hidden due to hide_parameters=True]",
+                    stats,
+                )
+    
+        evt_handled: bool = False
+        try:
+            if context.execute_style is ExecuteStyle.EXECUTEMANY:
+                effective_parameters = cast(
+                    "_CoreMultiExecuteParams", effective_parameters
+                )
+                if self.dialect._has_events:
+                    for fn in self.dialect.dispatch.do_executemany:
+                        if fn(
+                            cursor,
+                            str_statement,
+                            effective_parameters,
+                            context,
+                        ):
+                            evt_handled = True
+                            break
+                if not evt_handled:
+                    self.dialect.do_executemany(
+                        cursor,
+                        str_statement,
+                        effective_parameters,
+                        context,
+                    )
+            elif not effective_parameters and context.no_parameters:
+                if self.dialect._has_events:
+                    for fn in self.dialect.dispatch.do_execute_no_params:
+                        if fn(cursor, str_statement, context):
+                            evt_handled = True
+                            break
+                if not evt_handled:
+                    self.dialect.do_execute_no_params(
+                        cursor, str_statement, context
+                    )
+            else:
+                effective_parameters = cast(
+                    "_CoreSingleExecuteParams", effective_parameters
+                )
+                if self.dialect._has_events:
+                    for fn in self.dialect.dispatch.do_execute:
+                        if fn(
+                            cursor,
+                            str_statement,
+                            effective_parameters,
+                            context,
+                        ):
+                            evt_handled = True
+                            break
+                if not evt_handled:
+>                   self.dialect.do_execute(
+                        cursor, str_statement, effective_parameters, context
+                    )
+
+../../Library/Python/3.9/lib/python/site-packages/sqlalchemy/engine/base.py:1967: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <sqlalchemy.dialects.sqlite.pysqlite.SQLiteDialect_pysqlite object at 0x10c768c10>
+cursor = <sqlite3.Cursor object at 0x10df2b9d0>
+statement = 'INSERT INTO aav (id_aav, nom, libelle_integration, discipline, enseignement, id_enseignant, type_aav, description_mar...ctive, version) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id_aav, created_at, updated_at'
+parameters = (1, 'AAV1', None, None, None, None, ...)
+context = <sqlalchemy.dialects.sqlite.base.SQLiteExecutionContext object at 0x10e181c40>
+
+    def do_execute(self, cursor, statement, parameters, context=None):
+>       cursor.execute(statement, parameters)
+E       sqlite3.IntegrityError: NOT NULL constraint failed: aav.discipline
+
+../../Library/Python/3.9/lib/python/site-packages/sqlalchemy/engine/default.py:952: IntegrityError
+
+The above exception was the direct cause of the following exception:
+
+db_session = <sqlalchemy.orm.session.Session object at 0x10e320dc0>
+mock_db_connection = <MagicMock name='get_db_connection' id='4533127824'>
+
+    def test_create_attempt_real(db_session, mock_db_connection):
+        # Need to add learner, aav if constraints are active
+        # But for now let's just try
+        payload = {
+            "id_exercice_ou_evenement": 102,
+            "id_apprenant": 1,
+            "id_aav_cible": 1,
+            "score_obtenu": 0.9,
+            "est_valide": True
+        }
+    
+        # We should add the learner and aav to avoid Foreign Key errors
+        from app.database import ApprenantModel, AAVModel
+        db_session.add(ApprenantModel(id_apprenant=1, nom_utilisateur="user1"))
+        db_session.add(AAVModel(id_aav=1, nom="AAV1"))
+>       db_session.commit()
+
+tests/test_attempts_complete.py:58: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+../../Library/Python/3.9/lib/python/site-packages/sqlalchemy/orm/session.py:2030: in commit
+    trans.commit(_to_root=True)
+<string>:2: in commit
+    ???
+../../Library/Python/3.9/lib/python/site-packages/sqlalchemy/orm/state_changes.py:137: in _go
+    ret_value = fn(self, *arg, **kw)
+../../Library/Python/3.9/lib/python/site-packages/sqlalchemy/orm/session.py:1311: in commit
+    self._prepare_impl()
+<string>:2: in _prepare_impl
+    ???
+../../Library/Python/3.9/lib/python/site-packages/sqlalchemy/orm/state_changes.py:137: in _go
+    ret_value = fn(self, *arg, **kw)
+../../Library/Python/3.9/lib/python/site-packages/sqlalchemy/orm/session.py:1286: in _prepare_impl
+    self.session.flush()
+../../Library/Python/3.9/lib/python/site-packages/sqlalchemy/orm/session.py:4331: in flush
+    self._flush(objects)
+../../Library/Python/3.9/lib/python/site-packages/sqlalchemy/orm/session.py:4467: in _flush
+    transaction.rollback(_capture_exception=True)
+../../Library/Python/3.9/lib/python/site-packages/sqlalchemy/util/langhelpers.py:121: in __exit__
+    raise exc_value.with_traceback(exc_tb)
+../../Library/Python/3.9/lib/python/site-packages/sqlalchemy/orm/session.py:4427: in _flush
+    flush_context.execute()
+../../Library/Python/3.9/lib/python/site-packages/sqlalchemy/orm/unitofwork.py:466: in execute
+    rec.execute(self)
+../../Library/Python/3.9/lib/python/site-packages/sqlalchemy/orm/unitofwork.py:642: in execute
+    util.preloaded.orm_persistence.save_obj(
+../../Library/Python/3.9/lib/python/site-packages/sqlalchemy/orm/persistence.py:93: in save_obj
+    _emit_insert_statements(
+../../Library/Python/3.9/lib/python/site-packages/sqlalchemy/orm/persistence.py:1233: in _emit_insert_statements
+    result = connection.execute(
+../../Library/Python/3.9/lib/python/site-packages/sqlalchemy/engine/base.py:1419: in execute
+    return meth(
+../../Library/Python/3.9/lib/python/site-packages/sqlalchemy/sql/elements.py:527: in _execute_on_connection
+    return connection._execute_clauseelement(
+../../Library/Python/3.9/lib/python/site-packages/sqlalchemy/engine/base.py:1641: in _execute_clauseelement
+    ret = self._execute_context(
+../../Library/Python/3.9/lib/python/site-packages/sqlalchemy/engine/base.py:1846: in _execute_context
+    return self._exec_single_context(
+../../Library/Python/3.9/lib/python/site-packages/sqlalchemy/engine/base.py:1986: in _exec_single_context
+    self._handle_dbapi_exception(
+../../Library/Python/3.9/lib/python/site-packages/sqlalchemy/engine/base.py:2363: in _handle_dbapi_exception
+    raise sqlalchemy_exception.with_traceback(exc_info[2]) from e
+../../Library/Python/3.9/lib/python/site-packages/sqlalchemy/engine/base.py:1967: in _exec_single_context
+    self.dialect.do_execute(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <sqlalchemy.dialects.sqlite.pysqlite.SQLiteDialect_pysqlite object at 0x10c768c10>
+cursor = <sqlite3.Cursor object at 0x10df2b9d0>
+statement = 'INSERT INTO aav (id_aav, nom, libelle_integration, discipline, enseignement, id_enseignant, type_aav, description_mar...ctive, version) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id_aav, created_at, updated_at'
+parameters = (1, 'AAV1', None, None, None, None, ...)
+context = <sqlalchemy.dialects.sqlite.base.SQLiteExecutionContext object at 0x10e181c40>
+
+    def do_execute(self, cursor, statement, parameters, context=None):
+>       cursor.execute(statement, parameters)
+E       sqlalchemy.exc.IntegrityError: (sqlite3.IntegrityError) NOT NULL constraint failed: aav.discipline
+E       [SQL: INSERT INTO aav (id_aav, nom, libelle_integration, discipline, enseignement, id_enseignant, type_aav, description_markdown, prerequis_ids, prerequis_externes_codes, code_prerequis_interdisciplinaire, aav_enfant_ponderation, type_evaluation, ids_exercices, prompts_fabrication_ids, regles_progression, is_active, version) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id_aav, created_at, updated_at]
+E       [parameters: (1, 'AAV1', None, None, None, None, None, None, None, None, None, None, None, None, None, None, 1, 1)]
+E       (Background on this error at: https://sqlalche.me/e/20/gkpj)
+
+../../Library/Python/3.9/lib/python/site-packages/sqlalchemy/engine/default.py:952: IntegrityError
+__________________________ test_process_attempt_real ___________________________
+
+self = <sqlalchemy.engine.base.Connection object at 0x10da72520>
+dialect = <sqlalchemy.dialects.sqlite.pysqlite.SQLiteDialect_pysqlite object at 0x10c768c10>
+context = <sqlalchemy.dialects.sqlite.base.SQLiteExecutionContext object at 0x10da722e0>
+statement = <sqlalchemy.dialects.sqlite.base.SQLiteCompiler object at 0x10e2a8e80>
+parameters = [(1, 'AAV1', None, None, None, None, ...)]
+
+    def _exec_single_context(
+        self,
+        dialect: Dialect,
+        context: ExecutionContext,
+        statement: Union[str, Compiled],
+        parameters: Optional[_AnyMultiExecuteParams],
+    ) -> CursorResult[Any]:
+        """continue the _execute_context() method for a single DBAPI
+        cursor.execute() or cursor.executemany() call.
+    
+        """
+        if dialect.bind_typing is BindTyping.SETINPUTSIZES:
+            generic_setinputsizes = context._prepare_set_input_sizes()
+    
+            if generic_setinputsizes:
+                try:
+                    dialect.do_set_input_sizes(
+                        context.cursor, generic_setinputsizes, context
+                    )
+                except BaseException as e:
+                    self._handle_dbapi_exception(
+                        e, str(statement), parameters, None, context
+                    )
+    
+        cursor, str_statement, parameters = (
+            context.cursor,
+            context.statement,
+            context.parameters,
+        )
+    
+        effective_parameters: Optional[_AnyExecuteParams]
+    
+        if not context.executemany:
+            effective_parameters = parameters[0]
+        else:
+            effective_parameters = parameters
+    
+        if self._has_events or self.engine._has_events:
+            for fn in self.dispatch.before_cursor_execute:
+                str_statement, effective_parameters = fn(
+                    self,
+                    cursor,
+                    str_statement,
+                    effective_parameters,
+                    context,
+                    context.executemany,
+                )
+    
+        if self._echo:
+            self._log_info(str_statement)
+    
+            stats = context._get_cache_stats()
+    
+            if not self.engine.hide_parameters:
+                self._log_info(
+                    "[%s] %r",
+                    stats,
+                    sql_util._repr_params(
+                        effective_parameters,
+                        batches=10,
+                        ismulti=context.executemany,
+                    ),
+                )
+            else:
+                self._log_info(
+                    "[%s] [SQL parameters hidden due to hide_parameters=True]",
+                    stats,
+                )
+    
+        evt_handled: bool = False
+        try:
+            if context.execute_style is ExecuteStyle.EXECUTEMANY:
+                effective_parameters = cast(
+                    "_CoreMultiExecuteParams", effective_parameters
+                )
+                if self.dialect._has_events:
+                    for fn in self.dialect.dispatch.do_executemany:
+                        if fn(
+                            cursor,
+                            str_statement,
+                            effective_parameters,
+                            context,
+                        ):
+                            evt_handled = True
+                            break
+                if not evt_handled:
+                    self.dialect.do_executemany(
+                        cursor,
+                        str_statement,
+                        effective_parameters,
+                        context,
+                    )
+            elif not effective_parameters and context.no_parameters:
+                if self.dialect._has_events:
+                    for fn in self.dialect.dispatch.do_execute_no_params:
+                        if fn(cursor, str_statement, context):
+                            evt_handled = True
+                            break
+                if not evt_handled:
+                    self.dialect.do_execute_no_params(
+                        cursor, str_statement, context
+                    )
+            else:
+                effective_parameters = cast(
+                    "_CoreSingleExecuteParams", effective_parameters
+                )
+                if self.dialect._has_events:
+                    for fn in self.dialect.dispatch.do_execute:
+                        if fn(
+                            cursor,
+                            str_statement,
+                            effective_parameters,
+                            context,
+                        ):
+                            evt_handled = True
+                            break
+                if not evt_handled:
+>                   self.dialect.do_execute(
+                        cursor, str_statement, effective_parameters, context
+                    )
+
+../../Library/Python/3.9/lib/python/site-packages/sqlalchemy/engine/base.py:1967: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <sqlalchemy.dialects.sqlite.pysqlite.SQLiteDialect_pysqlite object at 0x10c768c10>
+cursor = <sqlite3.Cursor object at 0x10e387c70>
+statement = 'INSERT INTO aav (id_aav, nom, libelle_integration, discipline, enseignement, id_enseignant, type_aav, description_mar...ctive, version) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id_aav, created_at, updated_at'
+parameters = (1, 'AAV1', None, None, None, None, ...)
+context = <sqlalchemy.dialects.sqlite.base.SQLiteExecutionContext object at 0x10da722e0>
+
+    def do_execute(self, cursor, statement, parameters, context=None):
+>       cursor.execute(statement, parameters)
+E       sqlite3.IntegrityError: NOT NULL constraint failed: aav.discipline
+
+../../Library/Python/3.9/lib/python/site-packages/sqlalchemy/engine/default.py:952: IntegrityError
+
+The above exception was the direct cause of the following exception:
+
+db_session = <sqlalchemy.orm.session.Session object at 0x10e38df10>
+mock_db_connection = <MagicMock name='get_db_connection' id='4533574384'>
+
+    def test_process_attempt_real(db_session, mock_db_connection):
+        from app.database import ApprenantModel, AAVModel, StatutApprentissageModel
+        db_session.add(ApprenantModel(id_apprenant=1, nom_utilisateur="user1"))
+        db_session.add(AAVModel(id_aav=1, nom="AAV1"))
+    
+        att = TentativeModel(id=1, id_apprenant=1, id_aav_cible=1, score_obtenu=1.0, date_tentative=datetime.now())
+        db_session.add(att)
+>       db_session.commit()
+
+tests/test_attempts_complete.py:71: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+../../Library/Python/3.9/lib/python/site-packages/sqlalchemy/orm/session.py:2030: in commit
+    trans.commit(_to_root=True)
+<string>:2: in commit
+    ???
+../../Library/Python/3.9/lib/python/site-packages/sqlalchemy/orm/state_changes.py:137: in _go
+    ret_value = fn(self, *arg, **kw)
+../../Library/Python/3.9/lib/python/site-packages/sqlalchemy/orm/session.py:1311: in commit
+    self._prepare_impl()
+<string>:2: in _prepare_impl
+    ???
+../../Library/Python/3.9/lib/python/site-packages/sqlalchemy/orm/state_changes.py:137: in _go
+    ret_value = fn(self, *arg, **kw)
+../../Library/Python/3.9/lib/python/site-packages/sqlalchemy/orm/session.py:1286: in _prepare_impl
+    self.session.flush()
+../../Library/Python/3.9/lib/python/site-packages/sqlalchemy/orm/session.py:4331: in flush
+    self._flush(objects)
+../../Library/Python/3.9/lib/python/site-packages/sqlalchemy/orm/session.py:4467: in _flush
+    transaction.rollback(_capture_exception=True)
+../../Library/Python/3.9/lib/python/site-packages/sqlalchemy/util/langhelpers.py:121: in __exit__
+    raise exc_value.with_traceback(exc_tb)
+../../Library/Python/3.9/lib/python/site-packages/sqlalchemy/orm/session.py:4427: in _flush
+    flush_context.execute()
+../../Library/Python/3.9/lib/python/site-packages/sqlalchemy/orm/unitofwork.py:466: in execute
+    rec.execute(self)
+../../Library/Python/3.9/lib/python/site-packages/sqlalchemy/orm/unitofwork.py:642: in execute
+    util.preloaded.orm_persistence.save_obj(
+../../Library/Python/3.9/lib/python/site-packages/sqlalchemy/orm/persistence.py:93: in save_obj
+    _emit_insert_statements(
+../../Library/Python/3.9/lib/python/site-packages/sqlalchemy/orm/persistence.py:1233: in _emit_insert_statements
+    result = connection.execute(
+../../Library/Python/3.9/lib/python/site-packages/sqlalchemy/engine/base.py:1419: in execute
+    return meth(
+../../Library/Python/3.9/lib/python/site-packages/sqlalchemy/sql/elements.py:527: in _execute_on_connection
+    return connection._execute_clauseelement(
+../../Library/Python/3.9/lib/python/site-packages/sqlalchemy/engine/base.py:1641: in _execute_clauseelement
+    ret = self._execute_context(
+../../Library/Python/3.9/lib/python/site-packages/sqlalchemy/engine/base.py:1846: in _execute_context
+    return self._exec_single_context(
+../../Library/Python/3.9/lib/python/site-packages/sqlalchemy/engine/base.py:1986: in _exec_single_context
+    self._handle_dbapi_exception(
+../../Library/Python/3.9/lib/python/site-packages/sqlalchemy/engine/base.py:2363: in _handle_dbapi_exception
+    raise sqlalchemy_exception.with_traceback(exc_info[2]) from e
+../../Library/Python/3.9/lib/python/site-packages/sqlalchemy/engine/base.py:1967: in _exec_single_context
+    self.dialect.do_execute(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <sqlalchemy.dialects.sqlite.pysqlite.SQLiteDialect_pysqlite object at 0x10c768c10>
+cursor = <sqlite3.Cursor object at 0x10e387c70>
+statement = 'INSERT INTO aav (id_aav, nom, libelle_integration, discipline, enseignement, id_enseignant, type_aav, description_mar...ctive, version) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id_aav, created_at, updated_at'
+parameters = (1, 'AAV1', None, None, None, None, ...)
+context = <sqlalchemy.dialects.sqlite.base.SQLiteExecutionContext object at 0x10da722e0>
+
+    def do_execute(self, cursor, statement, parameters, context=None):
+>       cursor.execute(statement, parameters)
+E       sqlalchemy.exc.IntegrityError: (sqlite3.IntegrityError) NOT NULL constraint failed: aav.discipline
+E       [SQL: INSERT INTO aav (id_aav, nom, libelle_integration, discipline, enseignement, id_enseignant, type_aav, description_markdown, prerequis_ids, prerequis_externes_codes, code_prerequis_interdisciplinaire, aav_enfant_ponderation, type_evaluation, ids_exercices, prompts_fabrication_ids, regles_progression, is_active, version) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id_aav, created_at, updated_at]
+E       [parameters: (1, 'AAV1', None, None, None, None, None, None, None, None, None, None, None, None, None, None, 1, 1)]
+E       (Background on this error at: https://sqlalche.me/e/20/gkpj)
+
+../../Library/Python/3.9/lib/python/site-packages/sqlalchemy/engine/default.py:952: IntegrityError
+=============================== warnings summary ===============================
+../../Library/Python/3.9/lib/python/site-packages/pydantic/_internal/_config.py:323
+../../Library/Python/3.9/lib/python/site-packages/pydantic/_internal/_config.py:323
+../../Library/Python/3.9/lib/python/site-packages/pydantic/_internal/_config.py:323
+../../Library/Python/3.9/lib/python/site-packages/pydantic/_internal/_config.py:323
+../../Library/Python/3.9/lib/python/site-packages/pydantic/_internal/_config.py:323
+../../Library/Python/3.9/lib/python/site-packages/pydantic/_internal/_config.py:323
+../../Library/Python/3.9/lib/python/site-packages/pydantic/_internal/_config.py:323
+  /Users/ramtani/Library/Python/3.9/lib/python/site-packages/pydantic/_internal/_config.py:323: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.11/migration/
+    warnings.warn(DEPRECATION_MESSAGE, DeprecationWarning)
+
+app/main.py:24
+  /Users/ramtani/Desktop/projet_python/app/main.py:24: DeprecationWarning: 
+          on_event is deprecated, use lifespan event handlers instead.
+  
+          Read more about it in the
+          [FastAPI docs for Lifespan Events](https://fastapi.tiangolo.com/advanced/events/).
+          
+    @app.on_event("startup")
+
+../../Library/Python/3.9/lib/python/site-packages/fastapi/applications.py:4579
+  /Users/ramtani/Library/Python/3.9/lib/python/site-packages/fastapi/applications.py:4579: DeprecationWarning: 
+          on_event is deprecated, use lifespan event handlers instead.
+  
+          Read more about it in the
+          [FastAPI docs for Lifespan Events](https://fastapi.tiangolo.com/advanced/events/).
+          
+    return self.router.on_event(event_type)
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED tests/test_attempts_complete.py::test_list_attempts_real - pydantic_co...
+FAILED tests/test_attempts_complete.py::test_create_attempt_real - sqlalchemy...
+FAILED tests/test_attempts_complete.py::test_process_attempt_real - sqlalchem...
+======================== 3 failed, 9 warnings in 0.88s =========================

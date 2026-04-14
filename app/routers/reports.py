@@ -7,7 +7,18 @@ router = APIRouter()
 
 @router.post("/generate", response_model=Rapport, status_code=201)
 def generate_rapport_personnalise(request: RapportRequest) -> Rapport:
-    """Generates a personalized report (by AAV, learner or discipline)."""
+    """
+    Génère un rapport personnalisé filtré par type (AAV, Apprenant, Discipline).
+
+    Args:
+        request (RapportRequest): Paramètres du rapport (type, id_cible, période, format).
+
+    Returns:
+        Rapport: Le rapport généré.
+
+    Raises:
+        HTTPException: 404 si aucune donnée n'est trouvée pour la cible demandée.
+    """
     rapport = generer_rapport_personnalise(
         type=request.type_rapport,
         id_cible=request.id_cible,
@@ -22,7 +33,13 @@ def generate_rapport_personnalise(request: RapportRequest) -> Rapport:
 
 @router.get("/global", response_model=RapportGlobalResponse)
 def get_rapport_global() -> RapportGlobalResponse:
-    """Global ontology report: metrics of all AAVs + alerts."""
+    """
+    Récupère un rapport global sur l'ensemble de l'ontologie.
+    Inclut des métriques agrégées sur tous les AAVs et les alertes en cours.
+
+    Returns:
+        RapportGlobalResponse: Le rapport global contenant les statistiques et alertes.
+    """
     rapport = generer_rapport_global()
     if rapport:
         return rapport

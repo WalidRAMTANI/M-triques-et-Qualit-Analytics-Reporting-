@@ -136,7 +136,7 @@ __all__ = [
 # ---------------------------------- autre groupe
 
 from pydantic import BaseModel, Field, field_validator, model_validator
-from typing import Optional, List, Literal
+from typing import Optional, List, Literal, Any
 from enum import Enum
 from datetime import datetime
 
@@ -494,7 +494,7 @@ class PromptFabricationAAV(BaseModel):
     created_by: Optional[int] = None
     date_creation: Optional[datetime] = None
     is_active: bool = True
-    metadata: Optional[str] = None
+    meta_data: Optional[Any] = None
 
     class Config:
         from_attributes = True
@@ -509,7 +509,7 @@ class PromptCreate(BaseModel):
     version_prompt: int = Field(default=1, ge=1)
     created_by: Optional[int] = None
     is_active: bool = True
-    metadata: Optional[str] = None
+    meta_data: Optional[str] = None
 
 
 class PromptUpdate(BaseModel):
@@ -520,7 +520,7 @@ class PromptUpdate(BaseModel):
     prompt_texte: Optional[str] = None
     version_prompt: Optional[int] = None
     is_active: Optional[bool] = None
-    metadata: Optional[str] = None
+    meta_data: Optional[str] = None
 
 
 class StrategieSelection(str, Enum):
@@ -591,7 +591,7 @@ class SimulateResponseRequest(BaseModel):
 # app/models.py
 
 from pydantic import BaseModel, Field, field_validator, model_validator
-from typing import Optional, List, Literal
+from typing import Optional, List, Literal, Any
 from enum import Enum
 from datetime import datetime
 
@@ -1148,7 +1148,7 @@ class ProgressResponse(BaseModel):
 # app/models.py
 
 from pydantic import BaseModel, Field, field_validator, model_validator # type: ignore
-from typing import Optional, List, Literal
+from typing import Optional, List, Literal, Any
 from enum import Enum
 from datetime import datetime
 
@@ -1349,7 +1349,7 @@ class TentativeCreate(BaseModel):
     score_obtenu: float = Field(..., ge=0.0, le=1.0, description="Score obtenu lors de la tentative")
     est_valide: bool = Field(default=True, description="Indique si la tentative est valide selon les règles de progressions")
     temps_resolution_secondes: Optional[int] = Field(None, ge=0, description="Temps de résolution en secondes")
-    metadata: Optional[dict] = Field(None, description="Infos supplémentaires sur la tentative au format JSON")
+    meta_data: Optional[dict] = Field(None, description="Infos supplémentaires sur la tentative au format JSON")
 
     @field_validator('score_obtenu')
     @classmethod
@@ -1375,7 +1375,7 @@ class Tentative(TentativeCreate):
     date_tentative: datetime
     est_valide: bool
     temps_resolution_secondes: Optional[int] = None
-    metadata: Optional[dict] = None
+    meta_data: Optional[dict] = None
 
     class Config:
         """Configuration Pydantic V2."""

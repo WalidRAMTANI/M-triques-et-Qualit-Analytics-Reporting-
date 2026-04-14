@@ -2,6 +2,7 @@
 
 from fastapi import APIRouter, Depends, HTTPException
 from typing import List, Optional
+from datetime import datetime
 
 from app.model.model import (
     PromptFabricationAAV,
@@ -12,8 +13,12 @@ from app.model.model import (
     EvaluationRequest,
 )
 from app.database import (
-    get_db_connection, to_json, from_json
+    get_db_connection, to_json, from_json,
+    AAVModel, ApprenantModel, PromptFabricationAAVModel, ExerciceInstanceModel,
+    TentativeExerciceModel
 )
+from sqlalchemy import and_, func, case
+
 from app.services import (
     calculer_maitrise_reelle,
     determiner_difficulte_cible,
@@ -40,24 +45,46 @@ repo = PromptRepository()
 # ============================================================
 
 def _get_aav(id_aav: int) -> Optional[dict]:
-    """Récupère un AAV par son ID, retourne None s'il n'existe pas."""
-    with get_db_connection() as conn:
-        cursor = conn.cursor()
-        cursor.execute("SELECT * FROM aav WHERE id_aav = ?", (id_aav,))
-        row = cursor.fetchone()
-        return dict(row) if row else None
+    """
+    Récupère un AAV par son ID.
+
+    Args:
+        id_aav (int): L'identifiant unique de l'AAV.
+
+    Returns:
+        Optional[dict]: Un dictionnaire contenant les infos de l'AAV ou None si non trouvé.
+    """
+    with get_db_connection() as session:
+        aav = session.query(AAVModel).filter(AAVModel.id_aav == id_aav).first()
+        if not aav:
+            return None
+        return {
+            "id_aav": aav.id_aav,
+            "nom": aav.nom,
+            "type_evaluation": aav.type_evaluation,
+            "description_markdown": aav.description_markdown,
+            "discipline": aav.discipline
+        }
 
 
 def _get_apprenant(id_apprenant: int) -> Optional[dict]:
-    """Récupère un apprenant par son ID, retourne None s'il n'existe pas."""
-    with get_db_connection() as conn:
-        cursor = conn.cursor()
-        cursor.execute(
-            "SELECT * FROM apprenant WHERE id_apprenant = ?",
-            (id_apprenant,)
-        )
-        row = cursor.fetchone()
-        return dict(row) if row else None
+    """
+    Récupère un apprenant par son ID.
+
+    Args:
+        id_apprenant (int): L'identifiant unique de l'apprenant.
+
+    Returns:
+        Optional[dict]: Un dictionnaire avec les infos de l'apprenant ou None si non trouvé.
+    """
+    with get_db_connection() as session:
+        apprenant = session.query(ApprenantModel).filter(ApprenantModel.id_apprenant == id_apprenant).first()
+        if not apprenant:
+            return None
+        return {
+            "id_apprenant": apprenant.id_apprenant,
+            "nom_utilisateur": apprenant.nom_utilisateur
+        }
 
 
 # ============================================================
@@ -66,18 +93,29 @@ def _get_apprenant(id_apprenant: int) -> Optional[dict]:
 
 @router.get("/aavs/{id_aav}/prompts", response_model=List[PromptFabricationAAV])
 def get_prompts_for_aav(id_aav: int):
-    """Liste tous les prompts actifs associés à un AAV donné."""
+    """
+    Liste tous les prompts actifs associés à un AAV donné.
+
+    Args:
+        id_aav (int): L'identifiant de l'AAV cible.
+
+    Returns:
+        List[PromptFabricationAAV]: La liste des prompts trouvés.
+
+    Raises:
+        HTTPException: 404 si l'AAV n'existe pas, 500 en cas d'erreur DB.
+    """
     if not _get_aav(id_aav):
         raise HTTPException(status_code=404, detail="AAV non trouvé")
     try:
-        with get_db_connection() as conn:
-            cursor = conn.cursor()
-            cursor.execute("""
-                SELECT * FROM prompt_fabrication_aav
-                WHERE cible_aav_id = ? AND is_active = 1
-            """, (id_aav,))
-            rows = cursor.fetchall()
-        return [PromptFabricationAAV(**dict(row)) for row in rows]
+        with get_db_connection() as session:
+            rows = session.query(PromptFabricationAAVModel).filter(
+                and_(
+                    PromptFabricationAAVModel.cible_aav_id == id_aav,
+                    PromptFabricationAAVModel.is_active == True
+                )
+            ).all()
+            return [PromptFabricationAAV.model_validate(r) for r in rows]
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -90,31 +128,41 @@ def get_best_prompt_for_aav(id_aav: int):
     """
     Retourne le meilleur prompt pour un AAV selon le taux de succès
     moyen des exercices qu'il a générés.
+
+    Args:
+        id_aav (int): L'identifiant de l'AAV.
+
+    Returns:
+        PromptFabricationAAV: Les données du meilleur prompt.
+
+    Raises:
+        HTTPException: 404 si l'AAV n'existe pas ou n'a pas de prompt, 500 en cas d'erreur DB.
     """
     if not _get_aav(id_aav):
         raise HTTPException(status_code=404, detail="AAV non trouvé")
     try:
-        with get_db_connection() as conn:
-            cursor = conn.cursor()
-            cursor.execute("""
-                SELECT p.*,
-                       AVG(e.taux_succes_moyen) AS score_moyen,
-                       COUNT(e.id_exercice)     AS nb_exercices
-                FROM prompt_fabrication_aav p
-                LEFT JOIN exercice_instance e
-                    ON e.id_prompt_source = p.id_prompt
-                WHERE p.cible_aav_id = ? AND p.is_active = 1
-                GROUP BY p.id_prompt
-                ORDER BY score_moyen DESC, nb_exercices DESC
-                LIMIT 1
-            """, (id_aav,))
-            row = cursor.fetchone()
-        if not row:
-            raise HTTPException(
-                status_code=404,
-                detail=f"Aucun prompt actif pour l'AAV {id_aav}"
-            )
-        return PromptFabricationAAV(**dict(row))
+        with get_db_connection() as session:
+            # Query joined with avg and count
+            result = session.query(
+                PromptFabricationAAVModel,
+                func.avg(ExerciceInstanceModel.taux_succes_moyen).label("score_moyen"),
+                func.count(ExerciceInstanceModel.id_exercice).label("nb_exercices")
+            ).outerjoin(ExerciceInstanceModel, ExerciceInstanceModel.id_prompt_source == PromptFabricationAAVModel.id_prompt)\
+             .filter(and_(
+                 PromptFabricationAAVModel.cible_aav_id == id_aav,
+                 PromptFabricationAAVModel.is_active == True
+             ))\
+             .group_by(PromptFabricationAAVModel.id_prompt)\
+             .order_by(func.avg(ExerciceInstanceModel.taux_succes_moyen).desc(), 
+                       func.count(ExerciceInstanceModel.id_exercice).desc())\
+             .first()
+             
+            if not result or not result[0]:
+                raise HTTPException(
+                    status_code=404,
+                    detail=f"Aucun prompt actif pour l'AAV {id_aav}"
+                )
+            return PromptFabricationAAV.model_validate(result[0])
     except HTTPException:
         raise
     except Exception as e:
@@ -130,6 +178,15 @@ def generate_prompt_for_aav(id_aav: int):
     """
     Génère automatiquement un nouveau prompt pour un AAV
     basé sur sa description et son type d'évaluation.
+
+    Args:
+        id_aav (int): L'identifiant de l'AAV.
+
+    Returns:
+        PromptFabricationAAV: Le nouveau prompt généré.
+
+    Raises:
+        HTTPException: 404 si l'AAV n'existe pas, 500 en cas d'erreur technique.
     """
     aav = _get_aav(id_aav)
     if not aav:
@@ -162,61 +219,72 @@ def generate_prompt_for_aav(id_aav: int):
         raise HTTPException(status_code=500, detail=str(e))
 
 
-# ============================================================
-# RÈGLES DE PROGRESSION
-# ============================================================
 
 @router.get("/progression-rules")
 def list_progression_rules():
-    """Retourne les règles de progression de tous les AAV actifs."""
+    """
+    Retourne les règles de progression de tous les AAV actifs.
+
+    Returns:
+        List[dict]: Liste de règles par AAV.
+
+    Raises:
+        HTTPException: 500 en cas d'erreur base de données.
+    """
     try:
-        with get_db_connection() as conn:
-            cursor = conn.cursor()
-            cursor.execute("""
-                SELECT id_aav, nom, discipline, regles_progression
-                FROM aav
-                WHERE is_active = 1 AND regles_progression IS NOT NULL
-            """)
-            rows = cursor.fetchall()
-        return [
-            {
-                "id_aav": row["id_aav"],
-                "nom": row["nom"],
-                "discipline": row["discipline"],
-                "regles_progression": from_json(row["regles_progression"])
-            }
-            for row in rows
-        ]
+        with get_db_connection() as session:
+            rows = session.query(AAVModel).filter(
+                and_(
+                    AAVModel.is_active == True,
+                    AAVModel.regles_progression != None
+                )
+            ).all()
+            
+            return [
+                {
+                    "id_aav": r.id_aav,
+                    "nom": r.nom,
+                    "discipline": r.discipline,
+                    "regles_progression": from_json(r.regles_progression) if isinstance(r.regles_progression, str) else r.regles_progression
+                }
+                for r in rows
+            ]
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.get("/progression-rules/{id_aav}")
 def get_progression_rules(id_aav: int):
-    """Récupère les règles de progression d'un AAV spécifique."""
+    """
+    Récupère les règles de progression d'un AAV spécifique.
+
+    Args:
+        id_aav (int): L'identifiant de l'AAV.
+
+    Returns:
+        dict: Les règles de progression de l'AAV.
+
+    Raises:
+        HTTPException: 404 si l'AAV ou ses règles ne sont pas trouvés.
+    """
     try:
-        with get_db_connection() as conn:
-            cursor = conn.cursor()
-            cursor.execute(
-                "SELECT id_aav, nom, discipline, regles_progression"
-                " FROM aav WHERE id_aav = ?",
-                (id_aav,)
-            )
-            row = cursor.fetchone()
-        if not row:
-            raise HTTPException(status_code=404, detail="AAV non trouvé")
-        regles = from_json(row["regles_progression"])
-        if not regles:
-            raise HTTPException(
-                status_code=404,
-                detail=f"Aucune règle définie pour l'AAV {id_aav}"
-            )
-        return {
-            "id_aav": row["id_aav"],
-            "nom": row["nom"],
-            "discipline": row["discipline"],
-            "regles_progression": regles
-        }
+        with get_db_connection() as session:
+            row = session.query(AAVModel).filter(AAVModel.id_aav == id_aav).first()
+            if not row:
+                raise HTTPException(status_code=404, detail="AAV non trouvé")
+            
+            regles = from_json(row.regles_progression) if isinstance(row.regles_progression, str) else row.regles_progression
+            if not regles:
+                raise HTTPException(
+                    status_code=404,
+                    detail=f"Aucune règle définie pour l'AAV {id_aav}"
+                )
+            return {
+                "id_aav": row.id_aav,
+                "nom": row.nom,
+                "discipline": row.discipline,
+                "regles_progression": regles
+            }
     except HTTPException:
         raise
     except Exception as e:
@@ -228,29 +296,35 @@ def update_progression_rules(id_aav: int, regles: RegleProgression):
     """
     Modifie les règles de progression d'un AAV.
     Valide les données via le modèle Pydantic RegleProgression.
+
+    Args:
+        id_aav (int): L'identifiant de l'AAV.
+        regles (RegleProgression): Les nouvelles règles à appliquer.
+
+    Returns:
+        dict: Confirmation de la mise à jour.
+
+    Raises:
+        HTTPException: 404 si l'AAV n'existe pas, 500 en cas d'erreur DB.
     """
     try:
-        with get_db_connection() as conn:
-            cursor = conn.cursor()
-            cursor.execute(
-                "SELECT id_aav, nom FROM aav WHERE id_aav = ?", (id_aav,)
-            )
-            row = cursor.fetchone()
+        with get_db_connection() as session:
+            row = session.query(AAVModel).filter(AAVModel.id_aav == id_aav).first()
             if not row:
                 raise HTTPException(
                     status_code=404, detail="AAV non trouvé"
                 )
-            cursor.execute(
-                "UPDATE aav SET regles_progression = ?,"
-                " updated_at = CURRENT_TIMESTAMP WHERE id_aav = ?",
-                (to_json(regles.model_dump()), id_aav)
-            )
-        return {
-            "id_aav": id_aav,
-            "nom": row["nom"],
-            "regles_progression": regles.model_dump(),
-            "message": "Règles de progression mises à jour avec succès"
-        }
+            
+            row.regles_progression = regles.model_dump()
+            row.updated_at = datetime.now()
+            session.commit()
+            
+            return {
+                "id_aav": id_aav,
+                "nom": row.nom,
+                "regles_progression": regles.model_dump(),
+                "message": "Règles de progression mises à jour avec succès"
+            }
     except HTTPException:
         raise
     except Exception as e:
@@ -262,33 +336,46 @@ def get_next_exercise(
     id_aav: int,
     id_apprenant: int = Depends(_get_apprenant)
 ):
-    """Sélectionne intelligemment le prochain exercice pour un apprenant."""
+    """
+    Sélectionne intelligemment le prochain exercice pour un apprenant.
+
+    Args:
+        id_aav (int): L'identifiant de l'AAV cible.
+        id_apprenant (int): L'identifiant de l'apprenant (injecté).
+
+    Returns:
+        dict: Le prochain exercice sélectionné avec ses métadonnées.
+
+    Raises:
+        HTTPException: 404 si aucun exercice n'est trouvé.
+    """
     maitrise = calculer_maitrise_reelle(id_apprenant, id_aav)
     difficulte_cible = determiner_difficulte_cible(maitrise)
 
-    with get_db_connection() as conn:
-        cursor = conn.cursor()
-        query = """
-            SELECT e.* FROM exercice_instance e
-            WHERE e.id_aav_cible = ?
-              AND e.difficulte = ?
-              AND e.id_exercice NOT IN (
-                  SELECT id_exercice FROM tentative_exercice
-                  WHERE id_apprenant = ? AND score_obtenu >= 0.7
-              )
-            ORDER BY e.taux_succes_moyen DESC
-            LIMIT 1
-        """
-        cursor.execute(query, (id_aav, difficulte_cible, id_apprenant))
-        exercice = cursor.fetchone()
+    with get_db_connection() as session:
+        # Check subquery for already succeeded exercises
+        subquery = session.query(TentativeExerciceModel.id_exercice).filter(
+            and_(
+                TentativeExerciceModel.id_apprenant == id_apprenant,
+                TentativeExerciceModel.score_obtenu >= 0.7
+            )
+        )
+        
+        exercice = session.query(ExerciceInstanceModel).filter(
+            and_(
+                ExerciceInstanceModel.id_aav_cible == id_aav,
+                ExerciceInstanceModel.difficulte == difficulte_cible,
+                ~ExerciceInstanceModel.id_exercice.in_(subquery)
+            )
+        ).order_by(ExerciceInstanceModel.taux_succes_moyen.desc()).first()
 
         if not exercice:
-            cursor.execute("""
-                SELECT * FROM exercice_instance
-                WHERE id_aav_cible = ? AND difficulte = ?
-                ORDER BY taux_succes_moyen DESC LIMIT 1
-            """, (id_aav, difficulte_cible))
-            exercice = cursor.fetchone()
+            exercice = session.query(ExerciceInstanceModel).filter(
+                and_(
+                    ExerciceInstanceModel.id_aav_cible == id_aav,
+                    ExerciceInstanceModel.difficulte == difficulte_cible
+                )
+            ).order_by(ExerciceInstanceModel.taux_succes_moyen.desc()).first()
 
     if not exercice:
         raise HTTPException(
@@ -305,13 +392,32 @@ def get_next_exercise(
             "maitrise_calculee": maitrise,
             "difficulte_cible": difficulte_cible
         },
-        "exercice": dict(exercice)
+        "exercice": {
+            "id_exercice": exercice.id_exercice,
+            "titre": exercice.titre,
+            "contenu": from_json(exercice.contenu) if isinstance(exercice.contenu, str) else exercice.contenu,
+            "difficulte": exercice.difficulte,
+            "type_evaluation": exercice.type_evaluation
+        }
     }
 
 
 @router.get("/sequence/{id_apprenant}/{id_aav}")
 def get_exercise_sequence(id_apprenant: int, id_aav: int, nb: int = 3):
-    """Renvoie une liste d'exercices adaptés au niveau réel de l'élève."""
+    """
+    Renvoie une liste d'exercices adaptés au niveau réel de l'élève.
+
+    Args:
+        id_apprenant (int): L'identifiant de l'apprenant.
+        id_aav (int): L'identifiant de l'AAV cible.
+        nb (int, optional): Nombre d'exercices souhaités. Par défaut 3.
+
+    Returns:
+        dict: Une séquence d'exercices.
+
+    Raises:
+        HTTPException: 404 si aucun exercice n'est disponible.
+    """
     exercices = selectionner_sequence_exercices(
         id_apprenant, id_aav, nb_exercices=nb
     )
@@ -337,11 +443,17 @@ def get_exercise_sequence(id_apprenant: int, id_aav: int, nb: int = 3):
 @router.post("/exercises/select")
 def select_exercises(body: SelectionExercicesRequest):
     """
-    Sélectionne les meilleurs exercices pour un apprenant.
+    Sélectionne les meilleurs exercices pour un apprenant selon une stratégie donnée.
 
-    - adaptive   : exercices adaptés au niveau réel de chaque AAV (défaut)
-    - random     : exercices tirés aléatoirement dans le pool disponible
-    - progressive: exercices ordonnés du plus facile au plus difficile
+    Args:
+        body (SelectionExercicesRequest): Les paramètres de sélection 
+            (id_apprenant, id_aavs_cibles, strategie, nombre_exercices).
+
+    Returns:
+        List[dict]: La liste d'exercices sélectionnés.
+
+    Raises:
+        HTTPException: 404 si l'apprenant n'est pas trouvé.
     """
     if not _get_apprenant(body.id_apprenant):
         raise HTTPException(
@@ -352,57 +464,73 @@ def select_exercises(body: SelectionExercicesRequest):
     exercices_selectionnes = []
 
     try:
-        with get_db_connection() as conn:
-            cursor = conn.cursor()
-
+        with get_db_connection() as session:
             for id_aav in body.id_aavs_cibles:
                 if not _get_aav(id_aav):
                     continue
 
                 if body.strategie == "random":
-                    cursor.execute("""
-                        SELECT * FROM exercice_instance
-                        WHERE id_aav_cible = ?
-                        ORDER BY RANDOM()
-                        LIMIT ?
-                    """, (id_aav, body.nombre_exercices))
-                    rows = cursor.fetchall()
-                    exercices_selectionnes.extend([dict(r) for r in rows])
+                    rows = session.query(ExerciceInstanceModel).filter(
+                        ExerciceInstanceModel.id_aav_cible == id_aav
+                    ).order_by(func.random()).limit(body.nombre_exercices).all()
+                    exercices_selectionnes.extend([
+                        {
+                            "id_exercice": r.id_exercice,
+                            "titre": r.titre,
+                            "id_aav_cible": r.id_aav_cible,
+                            "difficulte": r.difficulte,
+                            "type_evaluation": r.type_evaluation
+                        } for r in rows
+                    ])
 
                 elif body.strategie == "progressive":
                     for niveau in ["debutant", "intermediaire", "avance"]:
-                        cursor.execute("""
-                            SELECT * FROM exercice_instance
-                            WHERE id_aav_cible = ? AND difficulte = ?
-                            ORDER BY taux_succes_moyen DESC
-                            LIMIT ?
-                        """, (id_aav, niveau, body.nombre_exercices))
-                        rows = cursor.fetchall()
-                        exercices_selectionnes.extend(
-                            [dict(r) for r in rows]
-                        )
+                        rows = session.query(ExerciceInstanceModel).filter(
+                            and_(
+                                ExerciceInstanceModel.id_aav_cible == id_aav,
+                                ExerciceInstanceModel.difficulte == niveau
+                            )
+                        ).order_by(ExerciceInstanceModel.taux_succes_moyen.desc()).limit(body.nombre_exercices).all()
+                        exercices_selectionnes.extend([
+                            {
+                                "id_exercice": r.id_exercice,
+                                "titre": r.titre,
+                                "id_aav_cible": r.id_aav_cible,
+                                "difficulte": r.difficulte,
+                                "type_evaluation": r.type_evaluation
+                            } for r in rows
+                        ])
 
                 else:  # adaptive (défaut)
                     maitrise = calculer_maitrise_reelle(
                         body.id_apprenant, id_aav
                     )
                     difficulte = determiner_difficulte_cible(maitrise)
-                    cursor.execute("""
-                        SELECT * FROM exercice_instance
-                        WHERE id_aav_cible = ? AND difficulte = ?
-                          AND id_exercice NOT IN (
-                              SELECT id_exercice FROM tentative_exercice
-                              WHERE id_apprenant = ?
-                                AND score_obtenu >= 0.7
-                          )
-                        ORDER BY taux_succes_moyen DESC
-                        LIMIT ?
-                    """, (
-                        id_aav, difficulte,
-                        body.id_apprenant, body.nombre_exercices
-                    ))
-                    rows = cursor.fetchall()
-                    exercices_selectionnes.extend([dict(r) for r in rows])
+                    
+                    subquery = session.query(TentativeExerciceModel.id_exercice).filter(
+                        and_(
+                            TentativeExerciceModel.id_apprenant == body.id_apprenant,
+                            TentativeExerciceModel.score_obtenu >= 0.7
+                        )
+                    )
+                    
+                    rows = session.query(ExerciceInstanceModel).filter(
+                        and_(
+                            ExerciceInstanceModel.id_aav_cible == id_aav,
+                            ExerciceInstanceModel.difficulte == difficulte,
+                            ~ExerciceInstanceModel.id_exercice.in_(subquery)
+                        )
+                    ).order_by(ExerciceInstanceModel.taux_succes_moyen.desc()).limit(body.nombre_exercices).all()
+                    
+                    exercices_selectionnes.extend([
+                        {
+                            "id_exercice": r.id_exercice,
+                            "titre": r.titre,
+                            "id_aav_cible": r.id_aav_cible,
+                            "difficulte": r.difficulte,
+                            "type_evaluation": r.type_evaluation
+                        } for r in rows
+                    ])
 
         exercices_selectionnes = exercices_selectionnes[:body.nombre_exercices]
 
@@ -427,9 +555,15 @@ def generate_sequence(body: SequenceExercicesRequest):
     """
     Génère une séquence optimale d'exercices pour un apprenant.
 
-    - Alterne les niveaux de difficulté pour varier
-    - Priorise les types d'évaluation non récemment utilisés
-    - Exclut les exercices déjà réussis
+    Args:
+        body (SequenceExercicesRequest): Paramètres de la séquence 
+            (id_apprenant, id_aavs_cibles, nombre_exercices).
+
+    Returns:
+        dict: La séquence d'exercices générée.
+
+    Raises:
+        HTTPException: 404 si l'apprenant n'est pas trouvé, 500 en cas d'erreur technique.
     """
     if not _get_apprenant(body.id_apprenant):
         raise HTTPException(
@@ -439,20 +573,15 @@ def generate_sequence(body: SequenceExercicesRequest):
 
     sequence = []
     try:
-        with get_db_connection() as conn:
-            cursor = conn.cursor()
-
-            cursor.execute("""
-                SELECT DISTINCT e.type_evaluation
-                FROM tentative_exercice t
-                JOIN exercice_instance e ON t.id_exercice = e.id_exercice
-                WHERE t.id_apprenant = ?
-                ORDER BY t.date_tentative DESC
-                LIMIT 10
-            """, (body.id_apprenant,))
-            types_recents = {
-                r["type_evaluation"] for r in cursor.fetchall()
-            }
+        with get_db_connection() as session:
+            # Get recent evaluation types
+            recent_rows = session.query(ExerciceInstanceModel.type_evaluation)\
+                .join(TentativeExerciceModel, TentativeExerciceModel.id_exercice == ExerciceInstanceModel.id_exercice)\
+                .filter(TentativeExerciceModel.id_apprenant == body.id_apprenant)\
+                .order_by(TentativeExerciceModel.date_tentative.desc())\
+                .limit(10).all()
+            
+            types_recents = {r[0] for r in recent_rows}
 
             niveaux_alternes = ["debutant", "intermediaire", "avance"]
             idx_niveau = 0
@@ -468,36 +597,33 @@ def generate_sequence(body: SequenceExercicesRequest):
                 difficulte_cible = niveaux_alternes[idx_niveau % 3]
                 idx_niveau += 1
 
-                placeholders = (
-                    ",".join("?" * len(types_recents))
-                    if types_recents else "''"
+                # Subquery for already succeeded exercises
+                subquery = session.query(TentativeExerciceModel.id_exercice).filter(
+                    and_(
+                        TentativeExerciceModel.id_apprenant == body.id_apprenant,
+                        TentativeExerciceModel.score_obtenu >= 0.7
+                    )
                 )
-                params = (
-                    [id_aav, difficulte_cible, body.id_apprenant]
-                    + list(types_recents)
-                )
-                cursor.execute(f"""
-                    SELECT * FROM exercice_instance
-                    WHERE id_aav_cible = ? AND difficulte = ?
-                      AND id_exercice NOT IN (
-                          SELECT id_exercice FROM tentative_exercice
-                          WHERE id_apprenant = ? AND score_obtenu >= 0.7
-                      )
-                    ORDER BY
-                        CASE WHEN type_evaluation
-                            NOT IN ({placeholders}) THEN 0 ELSE 1 END,
-                        taux_succes_moyen DESC
-                    LIMIT 1
-                """, params)
-                exercice = cursor.fetchone()
+
+                exercice = session.query(ExerciceInstanceModel).filter(
+
+                    and_(
+                        ExerciceInstanceModel.id_aav_cible == id_aav,
+                        ExerciceInstanceModel.difficulte == difficulte_cible,
+                        ~ExerciceInstanceModel.id_exercice.in_(subquery)
+                    )
+                ).order_by(
+                    case((ExerciceInstanceModel.type_evaluation.in_(types_recents), 1), else_=0),
+                    ExerciceInstanceModel.taux_succes_moyen.desc()
+                ).first()
 
                 if not exercice:
-                    cursor.execute("""
-                        SELECT * FROM exercice_instance
-                        WHERE id_aav_cible = ? AND difficulte = ?
-                        ORDER BY taux_succes_moyen DESC LIMIT 1
-                    """, (id_aav, difficulte_base))
-                    exercice = cursor.fetchone()
+                    exercice = session.query(ExerciceInstanceModel).filter(
+                        and_(
+                            ExerciceInstanceModel.id_aav_cible == id_aav,
+                            ExerciceInstanceModel.difficulte == difficulte_base
+                        )
+                    ).order_by(ExerciceInstanceModel.taux_succes_moyen.desc()).first()
 
                 if exercice:
                     sequence.append({
@@ -505,7 +631,13 @@ def generate_sequence(body: SequenceExercicesRequest):
                         "id_aav": id_aav,
                         "maitrise_actuelle": maitrise,
                         "difficulte_cible": difficulte_cible,
-                        "exercice": dict(exercice)
+                        "exercice": {
+                            "id_exercice": exercice.id_exercice,
+                            "titre": exercice.titre,
+                            "id_aav_cible": exercice.id_aav_cible,
+                            "difficulte": exercice.difficulte,
+                            "type_evaluation": exercice.type_evaluation
+                        }
                     })
 
                 if len(sequence) >= body.nombre_exercices:
@@ -528,12 +660,25 @@ def generate_sequence(body: SequenceExercicesRequest):
 @router.post("/prompts/{id_prompt}/preview")
 def preview_prompt(id_prompt: int, body: PreviewPromptRequest):
     """
-    Retourne le prompt enrichi avec le contexte de l'apprenant,
-    prêt à être envoyé à une API LLM.
+    Retourne le prompt enrichi avec le contexte de l'apprenant.
+    Prépare le texte final prêt à être envoyé à une API LLM.
+
+    Args:
+        id_prompt (int): L'identifiant du prompt.
+        body (PreviewPromptRequest): Paramètres (id_apprenant, include_context).
+
+    Returns:
+        dict: Le prompt enrichi et les infos de contexte.
+
+    Raises:
+        HTTPException: 404 si prompt ou apprenant non trouvé, 500 en cas d'erreur.
     """
-    prompt_data = repo.get_by_id(id_prompt)
-    if not prompt_data:
-        raise HTTPException(status_code=404, detail="Prompt non trouvé")
+    with get_db_connection() as session:
+        prompt_obj = session.query(PromptFabricationAAVModel).filter(PromptFabricationAAVModel.id_prompt == id_prompt).first()
+        if not prompt_obj:
+            raise HTTPException(status_code=404, detail="Prompt non trouvé")
+        
+        prompt_data = PromptFabricationAAV.model_validate(prompt_obj).model_dump()
 
     if not _get_apprenant(body.id_apprenant):
         raise HTTPException(
@@ -546,35 +691,24 @@ def preview_prompt(id_prompt: int, body: PreviewPromptRequest):
         id_aav = prompt_data["cible_aav_id"]
 
         if body.include_context:
-            with get_db_connection() as conn:
-                cursor = conn.cursor()
+            from app.database import StatutApprentissageModel
+            with get_db_connection() as session:
+                rows_maitrises = session.query(StatutApprentissageModel.id_aav_cible)\
+                    .filter(and_(StatutApprentissageModel.id_apprenant == body.id_apprenant, StatutApprentissageModel.est_maitrise == True)).all()
+                aavs_maitrises = [r[0] for r in rows_maitrises]
 
-                cursor.execute("""
-                    SELECT id_aav_cible FROM statut_apprentissage
-                    WHERE id_apprenant = ? AND est_maitrise = 1
-                """, (body.id_apprenant,))
-                aavs_maitrises = [
-                    r["id_aav_cible"] for r in cursor.fetchall()
-                ]
-
-                cursor.execute("""
-                    SELECT id_aav_cible, niveau_maitrise
-                    FROM statut_apprentissage
-                    WHERE id_apprenant = ?
-                      AND est_maitrise = 0
-                      AND niveau_maitrise > 0
-                """, (body.id_apprenant,))
+                rows_en_cours = session.query(StatutApprentissageModel.id_aav_cible, StatutApprentissageModel.niveau_maitrise)\
+                    .filter(and_(
+                        StatutApprentissageModel.id_apprenant == body.id_apprenant,
+                        StatutApprentissageModel.est_maitrise == False,
+                        StatutApprentissageModel.niveau_maitrise > 0
+                    )).all()
                 aavs_en_cours = [
-                    {"id_aav": r["id_aav_cible"], "niveau": r["niveau_maitrise"]}
-                    for r in cursor.fetchall()
+                    {"id_aav": r[0], "niveau": r[1]}
+                    for r in rows_en_cours
                 ]
 
-                cursor.execute(
-                    "SELECT nom, description_markdown, type_evaluation"
-                    " FROM aav WHERE id_aav = ?",
-                    (id_aav,)
-                )
-                aav = cursor.fetchone()
+                aav_obj = session.query(AAVModel).filter(AAVModel.id_aav == id_aav).first()
 
             maitrise_actuelle = calculer_maitrise_reelle(
                 body.id_apprenant, id_aav
@@ -592,11 +726,11 @@ def preview_prompt(id_prompt: int, body: PreviewPromptRequest):
                 f" {aavs_en_cours if aavs_en_cours else 'aucun'}\n\n"
                 f"=== AAV CIBLE (id: {id_aav}) ===\n"
                 f"- Nom          :"
-                f" {aav['nom'] if aav else 'inconnu'}\n"
+                f" {aav_obj.nom if aav_obj else 'inconnu'}\n"
                 f"- Description  :"
-                f" {aav['description_markdown'] if aav else ''}\n"
+                f" {aav_obj.description_markdown if aav_obj else ''}\n"
                 f"- Type éval.   :"
-                f" {aav['type_evaluation'] if aav else ''}\n\n"
+                f" {aav_obj.type_evaluation if aav_obj else ''}\n\n"
                 f"=== PROMPT DE GÉNÉRATION ===\n"
                 f"{prompt_texte}"
             )
@@ -618,6 +752,7 @@ def preview_prompt(id_prompt: int, body: PreviewPromptRequest):
         raise HTTPException(status_code=500, detail=str(e))
 
 
+
 # ============================================================
 # POST /exercises/evaluate
 # ============================================================
@@ -625,102 +760,95 @@ def preview_prompt(id_prompt: int, body: PreviewPromptRequest):
 @router.post("/exercises/evaluate")
 def evaluate_exercise(body: EvaluationRequest):
     """
-    Évalue la réponse d'un apprenant à un exercice et enregistre
-    la tentative.
+    Évalue la réponse d'un apprenant à un exercice et enregistre la tentative.
 
-    - Calcul Automatisé : compare avec la solution dans le contenu JSON
-    - Autres types      : score 0.5, évaluation humaine/pairs requise
+    Args:
+        body (EvaluationRequest): Données de l'exercice et réponse de l'apprenant.
+
+    Returns:
+        dict: Résultat de l'évaluation (score, feedback, succès).
+
+    Raises:
+        HTTPException: 404 si l'exercice n'est pas trouvé, 500 en cas d'erreur.
     """
-    with get_db_connection() as conn:
-        cursor = conn.cursor()
-        cursor.execute(
-            "SELECT * FROM exercice_instance WHERE id_exercice = ?",
-            (body.id_exercice,)
-        )
-        exercice = cursor.fetchone()
+    with get_db_connection() as session:
+        exercice = session.query(ExerciceInstanceModel).filter(ExerciceInstanceModel.id_exercice == body.id_exercice).first()
 
-    if not exercice:
-        raise HTTPException(
-            status_code=404,
-            detail=f"Exercice {body.id_exercice} non trouvé"
-        )
-
-    try:
-        exercice = dict(exercice)
-        score = 0.0
-        feedback = ""
-
-        if body.type_evaluation == "Calcul Automatisé":
-            contenu = from_json(exercice.get("contenu") or "{}")
-            solution_attendue = (
-                str(contenu.get("solution", "")).strip().lower()
+        if not exercice:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Exercice {body.id_exercice} non trouvé"
             )
-            reponse = body.reponse_apprenant.strip().lower()
 
-            if solution_attendue and reponse == solution_attendue:
-                score = 1.0
-                feedback = "Bonne réponse ! Félicitations."
-            elif solution_attendue:
-                score = 0.0
-                feedback = (
-                    f"Réponse incorrecte. La solution attendue était : "
-                    f"{contenu.get('solution', 'non disponible')}"
+        try:
+            score = 0.0
+            feedback = ""
+
+            if body.type_evaluation == "Calcul Automatisé":
+                contenu = from_json(exercice.contenu or "{}")
+                solution_attendue = (
+                    str(contenu.get("solution", "")).strip().lower()
                 )
+                reponse = body.reponse_apprenant.strip().lower()
+
+                if solution_attendue and reponse == solution_attendue:
+                    score = 1.0
+                    feedback = "Bonne réponse ! Félicitations."
+                elif solution_attendue:
+                    score = 0.0
+                    feedback = (
+                        f"Réponse incorrecte. La solution attendue était : "
+                        f"{contenu.get('solution', 'non disponible')}"
+                    )
+                else:
+                    score = 0.5
+                    feedback = (
+                        "Réponse enregistrée. Aucune solution automatique"
+                        " disponible pour cet exercice."
+                    )
             else:
                 score = 0.5
                 feedback = (
-                    "Réponse enregistrée. Aucune solution automatique"
-                    " disponible pour cet exercice."
+                    f"Réponse enregistrée pour une évaluation de type"
+                    f" '{body.type_evaluation}'. "
+                    f"Elle sera examinée manuellement ou soumise aux pairs."
                 )
-        else:
-            score = 0.5
-            feedback = (
-                f"Réponse enregistrée pour une évaluation de type"
-                f" '{body.type_evaluation}'. "
-                f"Elle sera examinée manuellement ou soumise aux pairs."
+
+            # Insert new attempt
+            new_tentative = TentativeExerciceModel(
+                id_exercice=body.id_exercice,
+                reponse_donnee=body.reponse_apprenant,
+                score_obtenu=score,
+                feedback_genere=feedback,
+                date_tentative=datetime.now()
             )
+            session.add(new_tentative)
+            session.flush() # Get id_tentative
+            id_tentative = new_tentative.id_tentative
 
-        with get_db_connection() as conn:
-            cursor = conn.cursor()
-            cursor.execute("""
-                INSERT INTO tentative_exercice
-                    (id_exercice, reponse_donnee, score_obtenu,
-                     feedback_genere, date_tentative)
-                VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
-            """, (
-                body.id_exercice,
-                body.reponse_apprenant,
-                score,
-                feedback
-            ))
-            id_tentative = cursor.lastrowid
+            # Update exercise stats
+            # We recalculate avg score and count
+            stats = session.query(
+                func.avg(TentativeExerciceModel.score_obtenu),
+                func.count(TentativeExerciceModel.id_tentative)
+            ).filter(TentativeExerciceModel.id_exercice == body.id_exercice).first()
+            
+            exercice.taux_succes_moyen = stats[0] or 0.0
+            exercice.nb_utilisations = stats[1] or 0
+            
+            session.commit()
 
-            cursor.execute("""
-                UPDATE exercice_instance
-                SET taux_succes_moyen = (
-                        SELECT AVG(score_obtenu)
-                        FROM tentative_exercice WHERE id_exercice = ?
-                    ),
-                    nb_utilisations = (
-                        SELECT COUNT(*)
-                        FROM tentative_exercice WHERE id_exercice = ?
-                    )
-                WHERE id_exercice = ?
-            """, (
-                body.id_exercice, body.id_exercice, body.id_exercice
-            ))
+            return {
+                "id_tentative": id_tentative,
+                "id_exercice": body.id_exercice,
+                "type_evaluation": body.type_evaluation,
+                "score_obtenu": score,
+                "feedback": feedback,
+                "est_reussi": score >= 0.7
+            }
 
-        return {
-            "id_tentative": id_tentative,
-            "id_exercice": body.id_exercice,
-            "type_evaluation": body.type_evaluation,
-            "score_obtenu": score,
-            "feedback": feedback,
-            "est_reussi": score >= 0.7
-        }
-
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=str(e))
 
 
 # ============================================================
@@ -730,50 +858,62 @@ def evaluate_exercise(body: EvaluationRequest):
 @router.get("/prompts/{id_prompt}/success-rate")
 def get_prompt_success_rate(id_prompt: int):
     """
-    Retourne le taux de succès agrégé de tous les exercices
-    générés à partir de ce prompt.
+    Retourne le taux de succès agrégé de tous les exercices générés à partir de ce prompt.
+
+    Args:
+        id_prompt (int): L'identifiant du prompt.
+
+    Returns:
+        dict: Statistiques de succès du prompt.
+
+    Raises:
+        HTTPException: 404 si le prompt n'existe pas.
     """
-    prompt_data = repo.get_by_id(id_prompt)
-    if not prompt_data:
-        raise HTTPException(status_code=404, detail="Prompt non trouvé")
+    with get_db_connection() as session:
+        prompt_obj = session.query(PromptFabricationAAVModel).filter(PromptFabricationAAVModel.id_prompt == id_prompt).first()
+        if not prompt_obj:
+            raise HTTPException(status_code=404, detail="Prompt non trouvé")
 
-    try:
-        with get_db_connection() as conn:
-            cursor = conn.cursor()
+        try:
+            stats = session.query(
+                func.count(ExerciceInstanceModel.id_exercice).label("nb_exercices"),
+                func.sum(ExerciceInstanceModel.nb_utilisations).label("nb_tentatives_total"),
+                func.avg(ExerciceInstanceModel.taux_succes_moyen).label("taux_succes_moyen"),
+                func.max(ExerciceInstanceModel.taux_succes_moyen).label("meilleur_taux"),
+                func.min(ExerciceInstanceModel.taux_succes_moyen).label("pire_taux")
+            ).filter(ExerciceInstanceModel.id_prompt_source == id_prompt).first()
 
-            cursor.execute("""
-                SELECT
-                    COUNT(e.id_exercice)    AS nb_exercices,
-                    SUM(e.nb_utilisations)  AS nb_tentatives_total,
-                    AVG(e.taux_succes_moyen) AS taux_succes_moyen,
-                    MAX(e.taux_succes_moyen) AS meilleur_taux,
-                    MIN(e.taux_succes_moyen) AS pire_taux
-                FROM exercice_instance e
-                WHERE e.id_prompt_source = ?
-            """, (id_prompt,))
-            stats = cursor.fetchone()
+            detail_exercices_rows = session.query(
+                ExerciceInstanceModel.id_exercice,
+                ExerciceInstanceModel.titre,
+                ExerciceInstanceModel.difficulte,
+                ExerciceInstanceModel.nb_utilisations,
+                ExerciceInstanceModel.taux_succes_moyen
+            ).filter(ExerciceInstanceModel.id_prompt_source == id_prompt)\
+             .order_by(ExerciceInstanceModel.taux_succes_moyen.desc()).all()
+            
+            detail_exercices = [
+                {
+                    "id_exercice": r.id_exercice,
+                    "titre": r.titre,
+                    "difficulte": r.difficulte,
+                    "nb_utilisations": r.nb_utilisations,
+                    "taux_succes_moyen": r.taux_succes_moyen
+                }
+                for r in detail_exercices_rows
+            ]
 
-            cursor.execute("""
-                SELECT id_exercice, titre, difficulte,
-                       nb_utilisations, taux_succes_moyen
-                FROM exercice_instance
-                WHERE id_prompt_source = ?
-                ORDER BY taux_succes_moyen DESC
-            """, (id_prompt,))
-            detail_exercices = [dict(r) for r in cursor.fetchall()]
+            return {
+                "id_prompt": id_prompt,
+                "cible_aav_id": prompt_obj.cible_aav_id,
+                "nb_exercices_generes": stats.nb_exercices or 0,
+                "nb_tentatives_total": stats.nb_tentatives_total or 0,
+                "taux_succes_moyen": round(stats.taux_succes_moyen or 0.0, 3),
+                "meilleur_taux": round(stats.meilleur_taux or 0.0, 3),
+                "pire_taux": round(stats.pire_taux or 0.0, 3),
+                "detail_exercices": detail_exercices
+            }
 
-        return {
-            "id_prompt": id_prompt,
-            "cible_aav_id": prompt_data["cible_aav_id"],
-            "nb_exercices_generes": stats["nb_exercices"] or 0,
-            "nb_tentatives_total": stats["nb_tentatives_total"] or 0,
-            "taux_succes_moyen": round(
-                stats["taux_succes_moyen"] or 0.0, 3
-            ),
-            "meilleur_taux": round(stats["meilleur_taux"] or 0.0, 3),
-            "pire_taux": round(stats["pire_taux"] or 0.0, 3),
-            "detail_exercices": detail_exercices
-        }
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=str(e))
 
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))

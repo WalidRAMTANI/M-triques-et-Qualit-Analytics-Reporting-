@@ -1,20 +1,21 @@
 from pydantic import BaseModel
+from typing import Optional
 
 class OntologyResponse(BaseModel):
     id_reference: int
-    discipline: str | None
-    aavs_ids_actifs: str | None
-    description: str | None
+    discipline: Optional[str]
+    aavs_ids_actifs: Optional[str]
+    description: Optional[str]
 
 
 class OntologyCreate(BaseModel):
     discipline: str
-    aavs_ids_actifs: str | None = None
-    description: str | None = None
+    aavs_ids_actifs: Optional[str] = None
+    description: Optional[str] = None
     
 class OntologyUpdate(BaseModel):
-    discipline: str | None = None
-    aavs_ids_actifs: str | None = None
-    description: str | None = None
+    discipline: Optional[str] = None
+    aavs_ids_actifs: Optional[str] = None
+    description: Optional[str] = None
    
 

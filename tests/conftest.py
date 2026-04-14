@@ -35,39 +35,17 @@ def make_orm_query_mock(scalar=None, first=None, all_results=None):
     return session, query_result
 
 
-# Initialize database at module load time before any tests run
-os.environ['DATABASE_PATH'] = 'platonAAV.db'
-
-# Remove old test database if it exists
+# Remove old test database if it exists to start fresh
 if os.path.exists('platonAAV.db'):
-    os.remove('platonAAV.db')
+    try:
+        os.remove('platonAAV.db')
+    except Exception as e:
+        print(f"Warning: could not remove platonAAV.db: {e}")
 
 # Initialize database with all tables
 init_database()
 
-# Create test learners
-try:
-    db = SessionLocal()
-    # Check if learners already exist
-    existing = db.query(ApprenantModel).filter(ApprenantModel.id_apprenant == 1).first()
-    
-    if not existing:
-        for i in range(1, 11):
-            learner = ApprenantModel(
-                id_apprenant=i,
-                nom_utilisateur=f"learner_{i}",
-                email=f"learner{i}@test.com"
-            )
-            db.add(learner)
-        db.commit()
-    db.close()
-except Exception as e:
-    print(f"Warning: Could not create test learners: {e}")
-    if db:
-        db.close()
-
-
 def pytest_sessionfinish(session, exitstatus):
     """Cleanup after all tests finish."""
-    if os.path.exists('platonAAV.db'):
-        os.remove('platonAAV.db')
+    pass
+

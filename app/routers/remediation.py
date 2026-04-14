@@ -1,33 +1,47 @@
 from fastapi import APIRouter, HTTPException
 from typing import List, Dict, Any
 from datetime import datetime
-import networkx as nx
 from app.model.model import TriggerRemediation, GeneratePath, RemediationResponse, PathRequest, ErreurApprenant
 from app.services.recursive import trouver_causes_racines, generer_parcours_remediation, get_niveau_maitrise
-from app.database import from_json, get_db_connection, to_json
+from app.database import (
+    from_json, get_db_connection, to_json, 
+    DiagnosticRemediationModel, 
+    AAVModel
+)
+from sqlalchemy import and_
+import networkx as nx
+
 
 class RemediationRepository:
     def make(self, id_apprenant, id_aav_source, score, racines, recos):
-        with get_db_connection() as conn:
-            cursor = conn.cursor()
-            cursor.execute("INSERT INTO diagnostic_remediation (id_apprenant, id_aav_source, score_obtenu, aav_racines_defaillants, recommandations, date_diagnostic) VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)", (id_apprenant, id_aav_source, score, to_json(racines), to_json(recos)))
-            return cursor.lastrowid
+        with get_db_connection() as session:
+            new_diag = DiagnosticRemediationModel(
+                id_apprenant=id_apprenant,
+                id_aav_source=id_aav_source,
+                score_obtenu=score,
+                aav_racines_defaillants=racines,
+                recommandations=recos,
+                date_diagnostic=datetime.now()
+            )
+            session.add(new_diag)
+            session.commit()
+            session.refresh(new_diag)
+            return new_diag.id_diagnostic
             
-    def get_apprenant(self, id_apprenant):
-        return self.get_by_apprenant(id_apprenant)
-
     def get_by_apprenant(self, id_apprenant):
-        with get_db_connection() as conn:
-            cursor = conn.cursor()
-            cursor.execute("SELECT * FROM diagnostic_remediation WHERE id_apprenant = ?", (id_apprenant,))
-            return [dict(row) for row in cursor.fetchall()]
+        with get_db_connection() as session:
+            results = session.query(DiagnosticRemediationModel).filter(
+                DiagnosticRemediationModel.id_apprenant == id_apprenant
+            ).all()
+            return [{c.name: getattr(r, c.name) for c in r.__table__.columns} for r in results]
 
     def get_by_id(self, id_diagnostic):
-        with get_db_connection() as conn:
-            cursor = conn.cursor()
-            cursor.execute("SELECT * FROM diagnostic_remediation WHERE id_diagnostic = ?", (id_diagnostic,))
-            row = cursor.fetchone()
-            return dict(row) if row else None
+        with get_db_connection() as session:
+            r = session.query(DiagnosticRemediationModel).filter(
+                DiagnosticRemediationModel.id_diagnostic == id_diagnostic
+            ).first()
+            return {c.name: getattr(r, c.name) for c in r.__table__.columns} if r else None
+
 
 router = APIRouter(
     tags=["Remediation & Diagnostic"],
