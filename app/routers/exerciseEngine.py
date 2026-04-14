@@ -3,7 +3,7 @@
 from fastapi import APIRouter, Depends, HTTPException
 from typing import List, Optional
 
-from app.models import (
+from app.model.model import (
     PromptFabricationAAV,
     RegleProgression,
     SelectionExercicesRequest,
@@ -19,7 +19,7 @@ from app.services import (
     determiner_difficulte_cible,
     selectionner_sequence_exercices,
 )
-from app.routeurs.promptFabricationAAV import PromptRepository
+from app.routers.promptFabricationAAV import PromptRepository
 
 
 router = APIRouter(

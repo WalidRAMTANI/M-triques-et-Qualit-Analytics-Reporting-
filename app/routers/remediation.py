@@ -2,9 +2,32 @@ from fastapi import APIRouter, HTTPException
 from typing import List, Dict, Any
 from datetime import datetime
 import networkx as nx
-from app.models import TriggerRemediation, GeneratePath, RemediationResponse, PathRequest, ErreurApprenant
-from app.recursive import trouver_causes_racines, generer_parcours_remediation, get_niveau_maitrise
-from app.database import RemediationRepository, from_json, get_db_connection
+from app.model.model import TriggerRemediation, GeneratePath, RemediationResponse, PathRequest, ErreurApprenant
+from app.services.recursive import trouver_causes_racines, generer_parcours_remediation, get_niveau_maitrise
+from app.database import from_json, get_db_connection, to_json
+
+class RemediationRepository:
+    def make(self, id_apprenant, id_aav_source, score, racines, recos):
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("INSERT INTO diagnostic_remediation (id_apprenant, id_aav_source, score_obtenu, aav_racines_defaillants, recommandations, date_diagnostic) VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)", (id_apprenant, id_aav_source, score, to_json(racines), to_json(recos)))
+            return cursor.lastrowid
+            
+    def get_apprenant(self, id_apprenant):
+        return self.get_by_apprenant(id_apprenant)
+
+    def get_by_apprenant(self, id_apprenant):
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT * FROM diagnostic_remediation WHERE id_apprenant = ?", (id_apprenant,))
+            return [dict(row) for row in cursor.fetchall()]
+
+    def get_by_id(self, id_diagnostic):
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT * FROM diagnostic_remediation WHERE id_diagnostic = ?", (id_diagnostic,))
+            row = cursor.fetchone()
+            return dict(row) if row else None
 
 router = APIRouter(
     tags=["Remediation & Diagnostic"],
@@ -12,6 +35,7 @@ router = APIRouter(
 )
 
 repo = RemediationRepository()
+
 
 @router.post("/diagnostics/remediation", response_model=RemediationResponse, status_code=201)
 def trigger_remediation(request: TriggerRemediation):

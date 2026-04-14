@@ -3,8 +3,8 @@
 from fastapi import APIRouter, HTTPException, Query
 from typing import List, Optional
 
-from app.models import PromptFabricationAAV, PromptCreate, PromptUpdate
-from app.database import get_db_connection, BaseRepository, to_json
+from app.model.model import PromptFabricationAAV, PromptCreate, PromptUpdate
+from app.database import get_db_connection, BaseRepository, to_json, PromptFabricationAAVModel
 
 
 router = APIRouter(
@@ -21,7 +21,7 @@ class PromptRepository(BaseRepository):
     """Repository dédié aux prompts de fabrication AAV."""
 
     def __init__(self):
-        super().__init__("prompt_fabrication_aav", "id_prompt")
+        super().__init__(PromptFabricationAAVModel)
 
     def create(self, data: dict) -> int:
         """Crée un prompt et retourne son ID."""

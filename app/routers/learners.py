@@ -7,7 +7,7 @@ from app.model.model import LearningStatus, LearningStatusSummary
 from app.model.model import ExternalPrerequisite, ExternalPrerequisiteCreate
 from app.model.model import OntologyReference, OntologySwitchResponse
 from app.model.model import ProgressResponse
-from app.database import get_db_connection, BaseRepository, to_json, from_json
+from app.database import get_db_connection, BaseRepository, to_json, from_json, ApprenantModel
 import sqlite3
 
 router = APIRouter(
@@ -24,7 +24,7 @@ router = APIRouter(
 
 class LearnerRepository(BaseRepository):
     def __init__(self):
-        super().__init__("apprenant", "id_apprenant")
+        super().__init__(ApprenantModel)
 
     def get_by_id(self, id_value: int):
         """Récupère un apprenant uniquement s'il est actif."""

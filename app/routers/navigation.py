@@ -3,7 +3,7 @@ from typing import List
 from datetime import datetime
 
 from app.database import get_db_connection, from_json, to_json
-from app.models import AAV
+from app.model.model import AAV
 
 router = APIRouter(
     prefix="/navigation",

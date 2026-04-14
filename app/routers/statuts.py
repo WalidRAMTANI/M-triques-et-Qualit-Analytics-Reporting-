@@ -3,7 +3,7 @@
 from fastapi import APIRouter, HTTPException # type: ignore
 from typing import List, Optional
 from app.database import get_db_connection, from_json, to_json
-from app.model.model import *
+from app.model.model import StatutApprentissage, StatutApprentissageCreate, StatutApprentissageUpdate, StatutApprentissageMasteryUpdate, Tentative
 from datetime import datetime
 import sqlite3 # Cette ligne elle sert juste à sqlite3.Row
 

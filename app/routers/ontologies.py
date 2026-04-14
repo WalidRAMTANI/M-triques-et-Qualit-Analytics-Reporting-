@@ -1,7 +1,7 @@
 from fastapi import APIRouter,HTTPException
 
-from app.db import get_db_connection
-from app.schemas.ontologiesPydanticClasses import OntologyCreate, OntologyResponse
+from app.database import get_db_connection
+from app.model.ontologiesPydanticClasses import OntologyCreate, OntologyResponse
 
 
 router = APIRouter(prefix="/ontologies", tags=["ontologies"])
