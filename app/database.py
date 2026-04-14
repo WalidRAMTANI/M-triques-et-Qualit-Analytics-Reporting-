@@ -14,7 +14,10 @@ from sqlalchemy.sql import func
 
 Base = declarative_base()
 
-DATABASE_URL = "sqlite:///platonAAV.db"
+import os
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+DB_PATH = os.path.join(os.path.dirname(BASE_DIR), "platonAAV.db")
+DATABASE_URL = f"sqlite:///{DB_PATH}"
 engine = create_engine(DATABASE_URL)
 SessionLocal = sessionmaker(bind=engine, autocommit=False, autoflush=False)
 

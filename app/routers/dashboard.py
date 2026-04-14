@@ -4,7 +4,7 @@ from app.model.schemas import OntologyCoverage, TeacherDashboard, DisciplineDash
 router = APIRouter()
 
 @router.get("/teachers/{id_enseignant}/overview", response_model=TeacherDashboard)
-def get_teacher_dashboard(id_enseignant: str):
+def get_teacher_dashboard(id_enseignant: int):
     """Retrieves dashboard statistics for a specific teacher."""
     stats = get_teacher_stats(id_enseignant)
     if not stats:

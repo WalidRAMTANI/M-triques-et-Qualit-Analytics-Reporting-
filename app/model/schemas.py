@@ -206,8 +206,8 @@ class MetriqueQualiteAAV(BaseModel):
     nb_apprenants_distincts: int
     ecart_type_scores: float
     date_calcul: datetime
-    periode_debut: datetime
-    periode_fin: datetime
+    periode_debut: Optional[datetime] = None
+    periode_fin: Optional[datetime] = None
 
 
 class LearnerBase(BaseModel):
@@ -429,7 +429,7 @@ class DisciplineDashboard(BaseModel):
 class RapportRequest(BaseModel):
     """Model for report request."""
     type_rapport: str
-    id_cible: Optional[int] = None
+    id_cible: Optional[Union[int, str]] = None
     format: str = "json"
     periode_debut: Optional[datetime] = None
     periode_fin: Optional[datetime] = None

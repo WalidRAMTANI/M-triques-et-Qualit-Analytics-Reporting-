@@ -38,6 +38,9 @@ def get_aavs(discipline: str = None, db: Session = Depends(get_db)):
             "libelle_integration": aav.libelle_integration,
             "discipline": aav.discipline,
             "enseignement": aav.enseignement,
+            "type_aav": getattr(aav, "type_aav", "N/A"),
+            "type_evaluation": getattr(aav, "type_evaluation", "N/A"),
+            "is_active": getattr(aav, "is_active", True),
         }
         for aav in aavs
     ]
@@ -73,9 +76,16 @@ def get_aav(aav_id: int, db: Session = Depends(get_db)):
         "discipline": aav.discipline,
         "enseignement": aav.enseignement,
         "description_markdown": aav.description_markdown,
+        "id_enseignant": aav.id_enseignant,
         "type_aav": getattr(aav, "type_aav", "N/A"),
         "type_evaluation": getattr(aav, "type_evaluation", "N/A"),
         "prerequis_ids": getattr(aav, "prerequis_ids", []),
+        "prerequis_externes_codes": getattr(aav, "prerequis_externes_codes", []),
+        "code_prerequis_interdisciplinaire": getattr(aav, "code_prerequis_interdisciplinaire", ""),
+        "aav_enfant_ponderation": getattr(aav, "aav_enfant_ponderation", {}),
+        "ids_exercices": getattr(aav, "ids_exercices", []),
+        "prompts_fabrication_ids": getattr(aav, "prompts_fabrication_ids", []),
+        "regles_progression": getattr(aav, "regles_progression", {}),
         "is_active": getattr(aav, "is_active", True),
         "version": getattr(aav, "version", 1),
         "created_at": getattr(aav, "created_at", None),
