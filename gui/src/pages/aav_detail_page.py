@@ -2,7 +2,7 @@
 AAV Detail page for displaying comprehensive AAV information.
 
 Shows detailed view of a single AAV with full information,
-modify and delete capabilities, styled with William GUI aesthetics.
+modify and delete capabilities, styled with professional aesthetics.
 """
 
 import sys
@@ -46,7 +46,7 @@ class DetailsPage:
         Build and return the detailed AAV information page.
         
         Fetches complete AAV data from the database and constructs a comprehensive
-        details page displaying AAV information in William GUI style with white background,
+        details page displaying AAV information in modern style with white background,
         including edit and delete buttons.
         
         Args:

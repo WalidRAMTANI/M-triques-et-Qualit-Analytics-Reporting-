@@ -199,7 +199,7 @@ class AboutPage:
                         ],
                         spacing=4,
                     ),
-                    alignment=ft.alignment.center,
+                    alignment=ft.Alignment(0, 0),
                     padding=20,
                 ),
             ],

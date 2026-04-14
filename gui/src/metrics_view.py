@@ -16,7 +16,7 @@ from app.routers import metrics, reports
 from app.model.schemas import RapportRequest
 
 def create_metrics_view(page: ft.Page):
-    # Thème William (Bleu)
+    # Thème professionnel (Bleu)
     COLOR_PRIMARY = "#1565C0"
     COLOR_BG_INPUT = "#E3F2FD"
     COLOR_BORDER_INPUT = "#2196F3"
@@ -175,7 +175,7 @@ def create_metrics_view(page: ft.Page):
             page.snack_bar.open = True
             page.update()
 
-    # Grand carré blanc comme William
+    # Grand carré blanc d'affichage
     boite_resultat = ft.Container(
         content=ft.Column([affichage_resultat], scroll=ft.ScrollMode.ALWAYS),
         width=600,

@@ -1,7 +1,6 @@
 import sys
 from pathlib import Path
 
-
 PROJECT_ROOT = Path(__file__).resolve().parents[2] 
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
@@ -13,11 +12,7 @@ import flet as ft
 from app.routers import sessions
 from app.database import SessionLocal
 
-def main(page: ft.Page):
-    page.title = "Gestion des Sessions"
-    page.padding = 0
-    page.bgcolor = "#F5F5F5"
-    
+def build_session_view(page: ft.Page):
     champ_chiffre = ft.TextField(
         label="Numéro Session", 
         width=200,
@@ -228,32 +223,33 @@ def main(page: ft.Page):
         except Exception as error:
             print("ERREUR SUPPRESSION :", error)
 
-    page.add(
-        ft.Container(
-            content=ft.Column(
-                controls=[
-                    ft.Text("Gestion des Sessions", size=28, weight="bold", color="#7B1FA2"),
-                    ft.Divider(height=20, color="transparent"),
-                    champ_chiffre,
-                    ft.Divider(height=10, color="transparent"),
-                    ft.Row([
-                        ft.ElevatedButton("Rechercher", on_click=donnee_session, icon=ft.Icons.SEARCH),
-                        ft.ElevatedButton("Nouvelle Session", on_click=ouvrir_popup_creation, icon=ft.Icons.ADD, bgcolor=ft.Colors.GREEN_400, color=ft.Colors.WHITE),
-                        ft.ElevatedButton("Liste des Sessions", on_click=ouvrir_popup_toutes_sessions, icon=ft.Icons.LIST, bgcolor=ft.Colors.PURPLE_400, color=ft.Colors.WHITE),
-                    ], alignment=ft.MainAxisAlignment.CENTER),
-                    ft.Divider(height=15, color="transparent"),
-                    boite_fixe,
-                    ft.Divider(height=15, color="transparent"),
-                    ft.Row([bouton_modifier, bouton_supprimer], alignment=ft.MainAxisAlignment.CENTER),
-                ],
-                horizontal_alignment=ft.CrossAxisAlignment.CENTER,
-                spacing=0,
-            ),
-            bgcolor="#FFFFFF",
-            expand=True,
-            padding=20,
-        )
+    return ft.Container(
+        content=ft.Column(
+            controls=[
+                ft.Text("Gestion des Sessions", size=28, weight="bold", color="#7B1FA2"),
+                ft.Divider(height=20, color="transparent"),
+                champ_chiffre,
+                ft.Divider(height=10, color="transparent"),
+                ft.Row([
+                    ft.ElevatedButton("Rechercher", on_click=donnee_session, icon=ft.Icons.SEARCH),
+                    ft.ElevatedButton("Nouvelle Session", on_click=ouvrir_popup_creation, icon=ft.Icons.ADD, bgcolor=ft.Colors.GREEN_400, color=ft.Colors.WHITE),
+                    ft.ElevatedButton("Liste des Sessions", on_click=ouvrir_popup_toutes_sessions, icon=ft.Icons.LIST, bgcolor=ft.Colors.PURPLE_400, color=ft.Colors.WHITE),
+                ], alignment=ft.MainAxisAlignment.CENTER),
+                ft.Divider(height=15, color="transparent"),
+                boite_fixe,
+                ft.Divider(height=15, color="transparent"),
+                ft.Row([bouton_modifier, bouton_supprimer], alignment=ft.MainAxisAlignment.CENTER),
+            ],
+            horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+            spacing=0,
+        ),
+        bgcolor="#FFFFFF",
+        expand=True,
+        padding=20,
     )
+
+def main(page: ft.Page):
+    page.add(build_session_view(page))
 
 if __name__ == "__main__":
     ft.app(target=main)

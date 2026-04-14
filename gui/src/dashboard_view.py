@@ -16,21 +16,10 @@ import flet as ft
 from app.routers import dashboard, reports
 from app.model.schemas import RapportRequest
 
-def main(page: ft.Page):
-    page.title = "Tableau de Bord Pédagogique"
-    page.padding = 40
-    page.bgcolor = "#F5F5F5"
-    page.window_width = 1000
-    page.window_height = 800
-    
-    # Correction alignement page
-    page.vertical_alignment = ft.MainAxisAlignment.START
-    page.horizontal_alignment = ft.CrossAxisAlignment.CENTER
-
+def create_dashboard_view(page: ft.Page):
     COLOR_PRIMARY = "#1565C0"
     COLOR_BG_INPUT = "#E3F2FD"
 
-    # --- ÉLÉMENTS UI ---
     champ_recherche = ft.TextField(
         label="ID Enseignant (ex: 1)", 
         width=300,
@@ -76,7 +65,6 @@ def main(page: ft.Page):
             text_info.color = "black"
             page.update()
         except Exception as err:
-            print(f"ERREUR DASHBOARD (ID {champ_recherche.value}) : {err}")
             container_stats.controls.clear()
             text_info.value = f"Aucun enseignant trouvé pour l'ID {champ_recherche.value}"
             text_info.color = "red"
@@ -101,19 +89,23 @@ def main(page: ft.Page):
         except Exception as err:
             print(f"Erreur Export: {err}")
 
-    # --- LAYOUT PRINCIPAL ---
-    header = ft.Column([
-        ft.Text("Tableau de Bord Pédagogique", size=40, weight="bold", color=COLOR_PRIMARY),
-        ft.Text("Suivi en temps réel de la performance des AAV", size=18, color="gray"),
-    ], horizontal_alignment=ft.CrossAxisAlignment.CENTER)
-
+    # Layout return
     search_bar = ft.Row([
         champ_recherche,
         ft.ElevatedButton("Charger", icon=ft.Icons.REFRESH, on_click=charger_donnees, bgcolor=COLOR_PRIMARY, color="white", height=50),
     ], alignment=ft.MainAxisAlignment.CENTER, spacing=20)
 
-    page.add(
-        ft.Column([
+    header = ft.Column([
+        ft.Text("Tableau de Bord Pédagogique", size=40, weight="bold", color=COLOR_PRIMARY),
+        ft.Text("Suivi en temps réel de la performance des AAV", size=18, color="gray"),
+    ], horizontal_alignment=ft.CrossAxisAlignment.CENTER)
+
+    # Plus de chargement automatique par défaut pour éviter la confusion
+    champ_recherche.value = ""
+    # charger_donnees()
+
+    return ft.Container(
+        content=ft.Column([
             header,
             ft.Divider(height=30, color="transparent"),
             search_bar,
@@ -131,12 +123,16 @@ def main(page: ft.Page):
                 height=55,
                 width=300
             ),
-        ], horizontal_alignment=ft.CrossAxisAlignment.CENTER, scroll=ft.ScrollMode.AUTO)
+        ], horizontal_alignment=ft.CrossAxisAlignment.CENTER, scroll=ft.ScrollMode.AUTO),
+        expand=True,
+        padding=40,
     )
 
-    # Chargement initial
-    champ_recherche.value = "1"
-    charger_donnees()
+def main(page: ft.Page):
+    page.title = "Tableau de Bord"
+    page.padding = 0
+    page.bgcolor = "#F5F5F5"
+    page.add(create_dashboard_view(page))
 
 if __name__ == "__main__":
     ft.app(target=main)
