@@ -15,19 +15,21 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 class Sidebar:
     """Sidebar component with navigation buttons and project info."""
     
-    def __init__(self, show_alerts_callback, show_about_callback):
-        """
-        Initialize the Sidebar.
-        
-        Args:
-            show_alerts_callback (callable): Callback function to navigate to alerts page
-            show_about_callback (callable): Callback function to display project info
-        
-        Returns:
-            None
-        """
-        self.show_alerts = show_alerts_callback
-        self.show_about = show_about_callback
+    def __init__(
+        self,
+        show_alerts_cb,
+        show_about_cb,
+        show_aav_detail_cb=None,
+        show_dashboard_cb=None,
+        show_metrics_cb=None,
+        show_sessions_cb=None,
+    ):
+        self.show_alerts = show_alerts_cb
+        self.show_about = show_about_cb
+        self.show_aav_detail = show_aav_detail_cb
+        self.show_dashboard = show_dashboard_cb
+        self.show_metrics = show_metrics_cb
+        self.show_sessions = show_sessions_cb
         self.sidebar_content = None
     
     def build(self):
@@ -83,34 +85,44 @@ class Sidebar:
                     ),
                     
                     ft.ElevatedButton(
-                        content=ft.Row(
-                            [
-                                ft.Icon(ft.Icons.WARNING, size=20),
-                                ft.Text("Alerts", expand=True),
-                            ],
-                            spacing=10,
-                        ),
+                        content=ft.Row([ft.Icon(ft.Icons.WARNING, size=20), ft.Text("Alerts", expand=True)], spacing=10),
                         on_click=self.show_alerts,
-                        style=ft.ButtonStyle(
-                            color="#FFFFFF",
-                            bgcolor={ft.ControlState.DEFAULT: "#B71C1C"},
-                        ),
+                        style=ft.ButtonStyle(color="#FFFFFF", bgcolor={ft.ControlState.DEFAULT: "#B71C1C"}),
                         width=200,
                     ),
                     
                     ft.ElevatedButton(
-                        content=ft.Row(
-                            [
-                                ft.Icon(ft.Icons.INFO, size=20),
-                                ft.Text("About", expand=True),
-                            ],
-                            spacing=10,
-                        ),
+                        content=ft.Row([ft.Icon(ft.Icons.ANALYTICS, size=20), ft.Text("AAV Detail", expand=True)], spacing=10),
+                        on_click=self.show_aav_detail,
+                        style=ft.ButtonStyle(color="#FFFFFF", bgcolor={ft.ControlState.DEFAULT: "#4A148C"}),
+                        width=200,
+                    ),
+                    
+                    ft.ElevatedButton(
+                        content=ft.Row([ft.Icon(ft.Icons.DASHBOARD_CUSTOMIZE, size=20), ft.Text("Dashboard", expand=True)], spacing=10),
+                        on_click=self.show_dashboard,
+                        style=ft.ButtonStyle(color="#FFFFFF", bgcolor={ft.ControlState.DEFAULT: "#1565C0"}),
+                        width=200,
+                    ),
+                    
+                    ft.ElevatedButton(
+                        content=ft.Row([ft.Icon(ft.Icons.BAR_CHART, size=20), ft.Text("Metrics", expand=True)], spacing=10),
+                        on_click=self.show_metrics,
+                        style=ft.ButtonStyle(color="#FFFFFF", bgcolor={ft.ControlState.DEFAULT: "#00695C"}),
+                        width=200,
+                    ),
+                    
+                    ft.ElevatedButton(
+                        content=ft.Row([ft.Icon(ft.Icons.TIMER, size=20), ft.Text("Sessions", expand=True)], spacing=10),
+                        on_click=self.show_sessions,
+                        style=ft.ButtonStyle(color="#FFFFFF", bgcolor={ft.ControlState.DEFAULT: "#E65100"}),
+                        width=200,
+                    ),
+                    
+                    ft.ElevatedButton(
+                        content=ft.Row([ft.Icon(ft.Icons.INFO, size=20), ft.Text("About", expand=True)], spacing=10),
                         on_click=self.show_about,
-                        style=ft.ButtonStyle(
-                            color="#FFFFFF",
-                            bgcolor={ft.ControlState.DEFAULT: "#1565C0"},
-                        ),
+                        style=ft.ButtonStyle(color="#FFFFFF", bgcolor={ft.ControlState.DEFAULT: "#37474F"}),
                         width=200,
                     ),
                     
