@@ -21,6 +21,7 @@ build/
 # Fichier de test temporaire
 test_setup.py
 venv
+venv_linux/
 # Fichiers de test
 test_api.py
 test_csv.py

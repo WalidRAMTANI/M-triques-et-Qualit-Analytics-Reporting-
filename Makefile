@@ -4,9 +4,9 @@ PYTHON_WIN  = .\venv\Scripts\python.exe
 PIP_WIN     = .\venv\Scripts\pip.exe
 UVICORN_WIN = .\venv\Scripts\uvicorn.exe
 
-PYTHON_UNIX  = ./venv/bin/python
-PIP_UNIX     = ./venv/bin/pip
-UVICORN_UNIX = ./venv/bin/uvicorn
+PYTHON_UNIX  = ./venv_linux/bin/python
+PIP_UNIX     = ./venv_linux/bin/pip
+UVICORN_UNIX = ./venv_linux/bin/uvicorn
 
 # ──────────────────────────────────────────────
 # Cible principale : installe, peuple et lance tout
@@ -25,7 +25,8 @@ _run_Windows:
 	$(PYTHON_WIN) gui\src\main.py
 
 _run_Linux _run_Darwin:
-	python3 -m venv venv
+	rm -rf venv_linux
+	python3 -m venv venv_linux
 	$(PIP_UNIX) install -r requirements.txt
 	$(PYTHON_UNIX) app/populate_gui_data.py
 	$(UVICORN_UNIX) app.main:app --port 8000 &

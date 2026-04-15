@@ -8,28 +8,44 @@ API REST construite avec **FastAPI** et **SQLAlchemy**, associée à une interfa
 
 ## Demarrage Express
 
-**Windows (PowerShell) :**
+### Windows (PowerShell)
+
+**1. Installer les dependances**
 ```powershell
-python -m venv venv; .\venv\Scripts\pip.exe install -r requirements.txt; .\venv\Scripts\python.exe app/populate_gui_data.py; Start-Process powershell -ArgumentList "-NoExit","-Command",".\venv\Scripts\uvicorn.exe app.main:app --port 8000"; Start-Sleep 3; .\venv\Scripts\python.exe gui\src\main.py
+python -m venv venv; .\venv\Scripts\pip.exe install -r requirements.txt; .\venv\Scripts\python.exe app/populate_gui_data.py
 ```
 
-**macOS / Linux :**
+**2. Lancer l'API (backend)**
+```powershell
+.\venv\Scripts\uvicorn.exe app.main:app --port 8000
+```
+
+**3. Lancer l'application (dans un second terminal)**
+```powershell
+.\venv\Scripts\python.exe gui\src\main.py
+```
+
+---
+
+### macOS / Linux / WSL
+
+**1. Installer les dependances**
 ```bash
-python3 -m venv venv && ./venv/bin/pip install -r requirements.txt && ./venv/bin/python app/populate_gui_data.py && ./venv/bin/uvicorn app.main:app --port 8000 & sleep 3 && ./venv/bin/python gui/src/main.py
+python3 -m venv venv_linux && ./venv_linux/bin/pip install -r requirements.txt && ./venv_linux/bin/python app/populate_gui_data.py
 ```
 
-**Via Makefile (macOS / Linux) :**
+**2. Lancer l'API (backend)**
 ```bash
-make run
+./venv_linux/bin/uvicorn app.main:app --port 8000
 ```
 
-Ces commandes :
-1. Creent l'environnement virtuel et installent les dependances
-2. Peuplent la base de donnees (15 entrees par table)
-3. Lancent le backend FastAPI (nouvelle fenetre / processus en arriere-plan)
-4. Attendent 3 secondes puis lancent l'interface graphique Flet
+**3. Lancer l'application (dans un second terminal)**
+```bash
+./venv_linux/bin/python gui/src/main.py
+```
 
 > L'API est accessible sur http://127.0.0.1:8000/docs une fois demarre.
+> Le backend doit etre lance avant l'interface graphique.
 
 ---
 
