@@ -103,24 +103,27 @@ def create_dashboard_view(page: ft.Page):
 
     def telecharger_pdf(e):
         try:
-            payload = {"type_rapport": "discipline", "id_cible": "Informatique", "format": "pdf"}
+            payload = {"type_rapport": "discipline", "id_cible": "Programmation", "format": "pdf"}
             rapport = api_post("/reports/generate", payload)
             if rapport and rapport.get("contenu"):
-                raw_content = json.loads(rapport["contenu"])
-                pdf_bytes = base64.b64decode(raw_content)
-                export_path = Path("exports")
-                export_path.mkdir(exist_ok=True)
-                filename = export_path / "rapport_global.pdf"
+                import base64
+                from pathlib import Path
+                
+                export_dir = PROJECT_ROOT / "exports"
+                export_dir.mkdir(exist_ok=True)
+                filename = export_dir / "Rapport_Global_Dashboard.pdf"
+                
                 with open(filename, "wb") as f:
-                    f.write(pdf_bytes)
-                page.snack_bar = ft.SnackBar(ft.Text(f"Rapport exporté : {filename}"))
+                    f.write(base64.b64decode(rapport["contenu"]))
+                
+                page.snack_bar = ft.SnackBar(ft.Text(f"✅ Rapport exporté dans : {filename}"), bgcolor="green")
+                page.snack_bar.open = True
             else:
-                page.snack_bar = ft.SnackBar(ft.Text("Impossible de générer le rapport PDF."))
-            page.snack_bar.open = True
+                page.snack_bar = ft.SnackBar(ft.Text("❌ Impossible de générer le rapport PDF."), bgcolor="red")
+                page.snack_bar.open = True
             page.update()
         except Exception as err:
-            print(f"Erreur Export PDF: {err}")
-            page.snack_bar = ft.SnackBar(ft.Text(f"Erreur PDF : {err}"))
+            page.snack_bar = ft.SnackBar(ft.Text(f"⚠️ Erreur PDF : {err}"), bgcolor="red")
             page.snack_bar.open = True
             page.update()
 

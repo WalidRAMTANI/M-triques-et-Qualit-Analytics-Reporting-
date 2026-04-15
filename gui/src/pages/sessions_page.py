@@ -1,24 +1,23 @@
-"""
-Sessions page – style moderne (inspiré directement de session.py de référence).
-Gestion des sessions : rechercher, créer, démarrer, clôturer, supprimer.
-Correspond aux 5 endpoints du router sessions.py.
-"""
-
 import sys
-from pathlib import Path
+import requests
 import flet as ft
+from pathlib import Path
 
+# Configuration du chemin racine pour les imports internes
 PROJECT_ROOT = Path(__file__).resolve().parents[3]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-from app.routers import sessions
-from app.database import SessionLocal
-
-
 class SessionsPage:
-    def __init__(self, content_area):
+    """
+    Classe pour la gestion du cycle de vie des sessions d'apprentissage.
+    Permet de creer, demarrer, cloturer et supprimer des sessions via l'API.
+    """
+
+    def __init__(self, content_area, is_professor=False):
+        """Initialise la page avec les delegues de navigation et les etats de role."""
         self.content_area = content_area
+        self.is_professor = is_professor
         self._page = None
         self.affichage_resultat = None
         self.champ_id = None
@@ -27,51 +26,54 @@ class SessionsPage:
         self.bouton_supprimer = None
 
     def _set_result(self, text: str, color: str = "#212121"):
+        """Met a jour la zone de texte affichant les resultats des operations."""
         self.affichage_resultat.value = text
         self.affichage_resultat.color = color
         self._page.update()
 
-    # ── Endpoint GET /{id} ────────────────────────────────────────────────────
-
     def rechercher(self, e=None):
+        """Recherche les details d'une session specifique par son identifiant."""
         if not self.champ_id.value:
             return
-        db = SessionLocal()
         try:
-            res = sessions.get_session(int(self.champ_id.value), db)
-            self._set_result(
-                f"Session ID     : {res['id_session']}\n"
-                f"ID Activité    : {res['id_activite']}\n"
-                f"ID Apprenant   : {res['id_apprenant']}\n"
-                f"Statut         : {res['statut'].upper()}\n"
-                f"Date Début     : {res['date_debut']}\n"
-                f"Date Fin       : {res['date_fin']}\n"
-                f"Bilan          : {res['bilan']}\n"
-            )
-            self.bouton_demarrer.visible = True
-            self.bouton_cloturer.visible = True
-            self.bouton_supprimer.visible = True
+            response = requests.get(f"http://127.0.0.1:8000/sessions/{int(self.champ_id.value)}")
+            if response.status_code == 200:
+                res = response.json()
+                self._set_result(
+                    f"Session ID : {res.get('id_session')}\n"
+                    f"ID Activite : {res.get('id_activite')}\n"
+                    f"ID Apprenant : {res.get('id_apprenant')}\n"
+                    f"Statut : {str(res.get('statut', '')).upper()}\n"
+                    f"Debut : {res.get('date_debut')}\n"
+                    f"Fin : {res.get('date_fin')}\n"
+                    f"Bilan : {res.get('bilan')}\n"
+                )
+                self.secure_set_visible(self.bouton_demarrer, True)
+                self.secure_set_visible(self.bouton_cloturer, True)
+                self.secure_set_visible(self.bouton_supprimer, True)
+            elif response.status_code == 404:
+                self._set_result("Session introuvable.", "#F44336")
+                self.bouton_demarrer.visible = False
+                self.bouton_cloturer.visible = False
+                self.bouton_supprimer.visible = False
+            else:
+                self._set_result(f"Erreur de recherche (Code {response.status_code})", "#F44336")
         except Exception as err:
-            self._set_result(f"Aucune session ne correspond à ce numéro\n{err}", "#F44336")
-            self.bouton_demarrer.visible = False
-            self.bouton_cloturer.visible = False
-            self.bouton_supprimer.visible = False
+            self._set_result(f"Erreur technique : {err}", "#F44336")
         finally:
-            db.close()
             self._page.update()
 
-    # ── Endpoint GET / – Liste popup ─────────────────────────────────────────
-
     def ouvrir_liste(self, e):
-        db = SessionLocal()
+        """Affiche la liste complete des sessions dans un dialogue modal."""
         try:
-            res = sessions.list_sessions(db=db)
-            liste = res.get("sessions", [])
-        except Exception as err:
-            self._set_result(f"Erreur liste : {err}", "#F44336")
-            db.close()
+            response = requests.get("http://127.0.0.1:8000/sessions/")
+            if response.status_code == 200:
+                res = response.json()
+                liste = res.get("sessions", []) if isinstance(res, dict) else res
+            else:
+                return
+        except:
             return
-        db.close()
 
         def charger(id_s):
             self.champ_id.value = str(id_s)
@@ -82,192 +84,145 @@ class SessionsPage:
         items = [
             ft.ListTile(
                 leading=ft.Icon(ft.Icons.PLAY_CIRCLE_FILL, color="#7B1FA2"),
-                title=ft.Text(f"Session {s['id_session']} (Apprenant: {s['id_apprenant']})", weight="bold"),
-                subtitle=ft.Text(f"Activité: {s['id_activite']} | Statut: {s['statut']}"),
+                title=ft.Text(f"Session {s['id_session']}", weight="bold"),
+                subtitle=ft.Text(f"Statut: {s['statut']}"),
                 on_click=lambda e, id_v=s["id_session"]: charger(id_v),
             )
             for s in liste
         ]
         dialog = ft.AlertDialog(
-            title=ft.Text("Liste de toutes les Sessions"),
-            content=ft.Container(content=ft.ListView(items, spacing=10, padding=10), width=500, height=500),
+            title=ft.Text("Liste des Sessions"),
+            content=ft.Container(content=ft.ListView(items, spacing=10), width=500, height=500),
             actions=[ft.TextButton("Fermer", on_click=lambda _: setattr(dialog, "open", False) or self._page.update())],
         )
         self._page.overlay.append(dialog)
         dialog.open = True
         self._page.update()
 
-    # ── Endpoint POST / – Créer ───────────────────────────────────────────────
-
     def ouvrir_creation(self, e):
-        champ_activite = ft.TextField(label="ID Activité", keyboard_type=ft.KeyboardType.NUMBER)
+        """Ouvre un formulaire modal pour creer une nouvelle session d'apprentissage."""
+        champ_activite = ft.TextField(label="ID Activite", keyboard_type=ft.KeyboardType.NUMBER)
         champ_apprenant = ft.TextField(label="ID Apprenant", keyboard_type=ft.KeyboardType.NUMBER)
 
         def valider(ev):
-            if not champ_activite.value or not champ_apprenant.value:
-                return
-            db = SessionLocal()
             try:
-                donnees = {
-                    "id_activite": int(champ_activite.value),
-                    "id_apprenant": int(champ_apprenant.value),
-                }
-                res = sessions.create_session(donnees, db)
-                dialog.open = False
-                self.champ_id.value = str(res["id_session"])
-                self._page.update()
-                self.rechercher()
+                donnees = {"id_activite": int(champ_activite.value), "id_apprenant": int(champ_apprenant.value)}
+                response = requests.post("http://127.0.0.1:8000/sessions/", json=donnees)
+                if response.status_code in [200, 201]:
+                    res = response.json()
+                    dialog.open = False
+                    self.champ_id.value = str(res.get("id_session", ""))
+                    self.rechercher()
             except Exception as err:
-                self._set_result(f"Erreur création : {err}", "#F44336")
-            finally:
-                db.close()
+                self._set_result(f"Erreur de creation : {err}", "#F44336")
 
         dialog = ft.AlertDialog(
-            title=ft.Text("Créer une nouvelle Session"),
+            title=ft.Text("Nouvelle Session"),
             content=ft.Column([champ_activite, champ_apprenant], tight=True),
             actions=[
                 ft.TextButton("Annuler", on_click=lambda _: setattr(dialog, "open", False) or self._page.update()),
-                ft.ElevatedButton("Créer", on_click=valider, bgcolor=ft.Colors.GREEN_400, color=ft.Colors.WHITE),
+                ft.ElevatedButton("Creer", on_click=valider, bgcolor=ft.Colors.GREEN_400, color=ft.Colors.WHITE),
             ],
         )
         self._page.overlay.append(dialog)
         dialog.open = True
         self._page.update()
 
-    # ── Endpoint PUT /{id}/start ──────────────────────────────────────────────
-
     def demarrer(self, e):
-        if not self.champ_id.value:
-            return
-        db = SessionLocal()
+        """Envoie une requête pour marquer la session comme active."""
+        if not self.champ_id.value: return
         try:
-            sessions.start_session(int(self.champ_id.value), db)
-            self._set_result("✅ Session démarrée avec succès.", "#4CAF50")
-            self.rechercher()
+            response = requests.put(f"http://127.0.0.1:8000/sessions/{int(self.champ_id.value)}/start")
+            if response.status_code == 200:
+                self._set_result("Session demarree avec succes.", "#4CAF50")
+                self.rechercher()
         except Exception as err:
-            self._set_result(f"❌ Erreur démarrage : {err}", "#F44336")
-        finally:
-            db.close()
-
-    # ── Endpoint PUT /{id}/close ──────────────────────────────────────────────
+            self._set_result(f"Erreur de demarrage : {err}", "#F44336")
 
     def cloturer(self, e):
-        if not self.champ_id.value:
-            return
-        db = SessionLocal()
+        """Envoie une requête pour fermer la session et generer un bilan automatique."""
+        if not self.champ_id.value: return
         try:
-            res = sessions.close_session(int(self.champ_id.value), db)
-            bilan = res.get("summary", {})
-            self._set_result(
-                f"✅ Session clôturée\n"
-                f"{'─' * 40}\n"
-                f"Total tentatives : {bilan.get('total_attempts', 'N/A')}\n"
-                f"Tentatives valides : {bilan.get('valid_attempts', 'N/A')}\n"
-                f"Score moyen : {bilan.get('average_score', 0):.2f}\n",
-                "#4CAF50",
-            )
+            response = requests.put(f"http://127.0.0.1:8000/sessions/{int(self.champ_id.value)}/close")
+            if response.status_code == 200:
+                res = response.json()
+                bilan = res.get("summary", {})
+                self._set_result(
+                    f"Session cloturee\n"
+                    f"Tentatives : {bilan.get('total_attempts')}\n"
+                    f"Reussites : {bilan.get('valid_attempts')}\n"
+                    f"Score moyen : {float(bilan.get('average_score', 0)):.2f}\n",
+                    "#4CAF50",
+                )
+            else:
+                self._set_result(f"Erreur lors de la cloture: {response.status_code}", "#F44336")
         except Exception as err:
-            self._set_result(f"❌ Erreur clôture : {err}", "#F44336")
-        finally:
-            db.close()
-
-    # ── Endpoint DELETE /{id} ─────────────────────────────────────────────────
+            self._set_result(f"Erreur technique de cloture : {err}", "#F44336")
 
     def action_supprimer(self, e):
-        if not self.champ_id.value:
-            return
-
+        """Action de suppression d'une session avec confirmation modale."""
         def confirmer(ev):
-            db = SessionLocal()
             try:
-                sessions.delete_session(int(self.champ_id.value), db)
-                self._set_result("✅ Session supprimée avec succès.", "#4CAF50")
-                self.bouton_demarrer.visible = False
-                self.bouton_cloturer.visible = False
-                self.bouton_supprimer.visible = False
+                response = requests.delete(f"http://127.0.0.1:8000/sessions/{int(self.champ_id.value)}")
+                if response.status_code in [200, 204]:
+                    self._set_result("Session supprimee.", "#4CAF50")
+                    self.secure_set_visible(self.bouton_demarrer, False)
+                    self.secure_set_visible(self.bouton_cloturer, False)
+                    self.secure_set_visible(self.bouton_supprimer, False)
+                    self.champ_id.value = ""
             except Exception as err:
-                self._set_result(f"❌ Erreur suppression : {err}", "#F44336")
+                self._set_result(f"Erreur de suppression : {err}", "#F44336")
             finally:
-                db.close()
                 dialog.open = False
                 self._page.update()
 
         dialog = ft.AlertDialog(
-            title=ft.Text("Confirmer la suppression", weight="bold"),
-            content=ft.Text(f"Supprimer la Session #{self.champ_id.value} ?"),
+            title=ft.Text("Supprimer la session ?"),
             actions=[
                 ft.TextButton("Annuler", on_click=lambda _: setattr(dialog, "open", False) or self._page.update()),
-                ft.ElevatedButton("Supprimer", on_click=confirmer, color="#FFFFFF", bgcolor="#F44336"),
+                ft.ElevatedButton("Confirmer", on_click=confirmer, color="#FFFFFF", bgcolor="#F44336"),
             ],
         )
         self._page.overlay.append(dialog)
         dialog.open = True
         self._page.update()
 
-    # ── Build ─────────────────────────────────────────────────────────────────
-
     def build(self, page: ft.Page):
+        """Construction de l'interface utilisateur de la page."""
         self._page = page
         COLOR_PRIMARY = "#7B1FA2"
-        COLOR_BG_INPUT = "#F3E5F5"
-        COLOR_BORDER = "#9C27B0"
 
         self.champ_id = ft.TextField(
-            label="Numéro Session",
-            width=200,
-            keyboard_type=ft.KeyboardType.NUMBER,
-            border_radius=10,
-            border_color=COLOR_BORDER,
-            bgcolor=COLOR_BG_INPUT,
-            prefix_icon=ft.Icons.SEARCH,
-            cursor_color=COLOR_PRIMARY,
+            label="ID Session", width=200, border_radius=10,
+            border_color="#9C27B0", bgcolor="#F3E5F5", prefix_icon=ft.Icons.SEARCH
         )
-        self.affichage_resultat = ft.Text("Résultat : aucun", size=14, color="#212121")
-        self.bouton_demarrer = ft.ElevatedButton(
-            "Démarrer", visible=False, on_click=self.demarrer,
-            color="#FFFFFF", bgcolor=ft.Colors.BLUE_400,
-        )
-        self.bouton_cloturer = ft.ElevatedButton(
-            "Clôturer", visible=False, on_click=self.cloturer,
-            color="#FFFFFF", bgcolor=ft.Colors.AMBER_700,
-        )
-        self.bouton_supprimer = ft.ElevatedButton(
-            "Supprimer", visible=False, on_click=self.action_supprimer,
-            color="#FFFFFF", bgcolor="#F44336",
-        )
+        self.affichage_resultat = ft.Text("En attente de recherche.", size=14)
+        
+        self.bouton_demarrer = ft.ElevatedButton("Demarrer", visible=False, on_click=self.demarrer, bgcolor="#42A5F5", color="white")
+        self.bouton_cloturer = ft.ElevatedButton("Cloturer", visible=False, on_click=self.cloturer, bgcolor="#FFA000", color="white")
+        self.bouton_supprimer = ft.ElevatedButton("Supprimer", visible=False, on_click=self.action_supprimer, bgcolor="#EF5350", color="white")
+
+        def secure_set_visible(btn, val):
+            btn.visible = val if self.is_professor else False
+        self.secure_set_visible = secure_set_visible
 
         boite_resultat = ft.Container(
             content=ft.Column([self.affichage_resultat], scroll=ft.ScrollMode.ALWAYS),
-            width=600, height=380,
-            bgcolor="#FFFFFF",
-            border_radius=10,
-            padding=16,
-            border=ft.border.all(1, "#E1BEE7"),
-            shadow=ft.BoxShadow(blur_radius=8, color=ft.Colors.with_opacity(0.08, ft.Colors.BLACK)),
+            width=600, height=380, bgcolor="#FFFFFF", border_radius=10, padding=16,
+            border=ft.border.all(1, "#E1BEE7")
         )
 
         return ft.Container(
-            content=ft.Column(
-                [
-                    ft.Text("Gestion des Sessions", size=28, weight="bold", color=COLOR_PRIMARY),
-                    ft.Divider(height=20, color="transparent"),
-                    self.champ_id,
-                    ft.Divider(height=10, color="transparent"),
-                    ft.Row([
-                        ft.ElevatedButton("Rechercher", icon=ft.Icons.SEARCH, on_click=self.rechercher, bgcolor=COLOR_PRIMARY, color=ft.Colors.WHITE),
-                        ft.ElevatedButton("Nouvelle Session", icon=ft.Icons.ADD, on_click=self.ouvrir_creation, bgcolor=ft.Colors.GREEN_400, color=ft.Colors.WHITE),
-                        ft.ElevatedButton("Liste des Sessions", icon=ft.Icons.LIST, on_click=self.ouvrir_liste, bgcolor=ft.Colors.PURPLE_400, color=ft.Colors.WHITE),
-                    ], alignment=ft.MainAxisAlignment.CENTER),
-                    ft.Divider(height=15, color="transparent"),
-                    boite_resultat,
-                    ft.Divider(height=15, color="transparent"),
-                    ft.Row([self.bouton_demarrer, self.bouton_cloturer, self.bouton_supprimer], alignment=ft.MainAxisAlignment.CENTER, spacing=20),
-                ],
-                horizontal_alignment=ft.CrossAxisAlignment.CENTER,
-                spacing=0,
-                scroll=ft.ScrollMode.AUTO,
-            ),
-            bgcolor="#FFFFFF",
-            expand=True,
-            padding=20,
+            content=ft.Column([
+                ft.Text("Suivi des Sessions d'Apprenant", size=28, weight="bold", color=COLOR_PRIMARY),
+                self.champ_id,
+                ft.Row([
+                    ft.ElevatedButton("Chercher", icon=ft.Icons.SEARCH, on_click=self.rechercher, bgcolor=COLOR_PRIMARY, color="white"),
+                    ft.ElevatedButton("Nouvelle", icon=ft.Icons.ADD, on_click=self.ouvrir_creation, bgcolor="#66BB6A", color="white", visible=self.is_professor),
+                    ft.ElevatedButton("Toutes", icon=ft.Icons.LIST, on_click=self.ouvrir_liste, bgcolor="#AB47BC", color="white"),
+                ], alignment=ft.MainAxisAlignment.CENTER),
+                boite_resultat,
+                ft.Row([self.bouton_demarrer, self.bouton_cloturer, self.bouton_supprimer], alignment=ft.MainAxisAlignment.CENTER, spacing=20),
+            ], horizontal_alignment=ft.CrossAxisAlignment.CENTER, scroll=ft.ScrollMode.AUTO),
+            padding=20, expand=True
         )

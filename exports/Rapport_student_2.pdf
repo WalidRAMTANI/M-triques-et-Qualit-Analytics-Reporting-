@@ -1,0 +1,79 @@
+%PDF-1.4
+1 0 obj
+<</Type /Catalog /Pages 2 0 R>>
+endobj
+2 0 obj
+<</Type /Pages /Kids [3 0 R] /Count 1>>
+endobj
+3 0 obj
+<</Type /Page /Parent 2 0 R /Resources <</Font <</F1 4 0 R>>>> /MediaBox [0 0 595 842] /Contents 5 0 R>>
+endobj
+4 0 obj
+<</Type /Font /Subtype /Type1 /BaseFont /Helvetica>>
+endobj
+5 0 obj
+<</Length 1257>>
+stream
+BT
+/F1 12 Tf
+50 800 Td
+15 TL
+(Rapport Apprenant - bob_progressif \(2\)) Tj T*
+() Tj T*
+(-) Tj T*
+(    id_aav: 1) Tj T*
+(    nom: Types entiers) Tj T*
+(    score_obtenu: 0.85) Tj T*
+(    date_tentative: 2026-02-20 14:00:00) Tj T*
+(-) Tj T*
+(    id_aav: 2) Tj T*
+(    nom: Type caractre) Tj T*
+(    score_obtenu: 0.6) Tj T*
+(    date_tentative: 2026-02-19 10:00:00) Tj T*
+(-) Tj T*
+(    id_aav: 5) Tj T*
+(    nom: Oprateurs arithmtiques) Tj T*
+(    score_obtenu: 0.45) Tj T*
+(    date_tentative: 2026-02-18 16:00:00) Tj T*
+(-) Tj T*
+(    id_aav: 6) Tj T*
+(    nom: Oprateurs de comparaison) Tj T*
+(    score_obtenu: 0.3) Tj T*
+(    date_tentative: 2026-02-15 14:00:00) Tj T*
+(-) Tj T*
+(    id_aav: 1) Tj T*
+(    nom: Types entiers) Tj T*
+(    score_obtenu: 0.8) Tj T*
+(    date_tentative: 2026-01-20 14:00:00) Tj T*
+(-) Tj T*
+(    id_aav: 5) Tj T*
+(    nom: Oprateurs arithmtiques) Tj T*
+(    score_obtenu: 0.4) Tj T*
+(    date_tentative: 2026-01-20 09:30:00) Tj T*
+(-) Tj T*
+(    id_aav: 2) Tj T*
+(    nom: Type caractre) Tj T*
+(    score_obtenu: 0.5) Tj T*
+(    date_tentative: 2026-01-16 11:30:00) Tj T*
+(-) Tj T*
+(    id_aav: 1) Tj T*
+(    nom: Types entiers) Tj T*
+(    score_obtenu: 0.7) Tj T*
+(    date_tentative: 2026-01-15 10:30:00) Tj T*
+() Tj T*
+ET
+endstream
+endobj
+xref
+0 6
+0000000000 65535 f 
+0000000009 00000 n 
+0000000056 00000 n 
+0000000111 00000 n 
+0000000231 00000 n 
+0000000299 00000 n 
+trailer
+<</Size 6 /Root 1 0 R>>
+startxref
+1606
+%%EOF

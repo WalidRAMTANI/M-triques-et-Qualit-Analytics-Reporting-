@@ -10,7 +10,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from app.database import SessionLocal, AAVModel, get_db
 
-router = APIRouter(prefix="/aavs", tags=["AAVs"])
+router = APIRouter(tags=["AAVs"])
 
 @router.get("/")
 def get_aavs(discipline: str = None, db: Session = Depends(get_db)):
@@ -38,6 +38,7 @@ def get_aavs(discipline: str = None, db: Session = Depends(get_db)):
             "libelle_integration": aav.libelle_integration,
             "discipline": aav.discipline,
             "enseignement": aav.enseignement,
+            "id_enseignant": getattr(aav, "id_enseignant", None),
         }
         for aav in aavs
     ]
@@ -70,8 +71,8 @@ def get_aav(aav_id: int, db: Session = Depends(get_db)):
         "id_aav": aav.id_aav,
         "nom": aav.nom,
         "libelle_integration": aav.libelle_integration,
-        "discipline": aav.discipline,
         "enseignement": aav.enseignement,
+        "id_enseignant": getattr(aav, "id_enseignant", None),
         "description_markdown": aav.description_markdown,
         "type_aav": getattr(aav, "type_aav", "N/A"),
         "type_evaluation": getattr(aav, "type_evaluation", "N/A"),

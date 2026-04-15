@@ -34,19 +34,19 @@ app.include_router(comparaison.router, prefix="/metrics/compare", tags=["compari
 app.include_router(metrics.router, prefix="/metrics/aav", tags=["metrics"])
 app.include_router(dashboard.router, prefix="/dashboard", tags=["dashboard"])
 app.include_router(aavs.router, prefix="/aavs", tags=["aavs"])
-app.include_router(activitePedagogique.router, prefix="/activitePedagogique", tags=["activitePedagogique"])
+app.include_router(activitePedagogique.router, prefix="/activites", tags=["activitePedagogique"])
 app.include_router(sessions.router, prefix="/sessions", tags=["sessions"])
 app.include_router(types.router, prefix="/types", tags=["types"])
 
 # Missing routers from other groups
 app.include_router(attempts.router, prefix="/attempts", tags=["attempts"])
-app.include_router(exerciseEngine.router, prefix="/exerciseEngine", tags=["exerciseEngine"])
+app.include_router(exerciseEngine.router, tags=["exerciseEngine"])  # routes already include /aavs & /exercises paths
 app.include_router(learners.router, prefix="/learners", tags=["learners"])
 app.include_router(navigation.router, prefix="/navigation", tags=["navigation"])
 app.include_router(ontologies.router, prefix="/ontologies", tags=["ontologies"])
 app.include_router(promptFabricationAAV.router, prefix="/promptFabricationAAV", tags=["promptFabricationAAV"])
 app.include_router(remediation.router, prefix="/remediation", tags=["remediation"])
-app.include_router(statuts.router, prefix="/statuts", tags=["statuts"])
+app.include_router(statuts.router, tags=["statuts"])  # routes already start with /learning-status
 # ============================================
 # GESTIONNAIRES D'EXCEPTIONS GLOBAUX
 # ============================================

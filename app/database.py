@@ -348,6 +348,16 @@ def get_db_connection():
         def lastrowid(self):
             return self.result.lastrowid if self.result else None
 
+        def scalar(self):
+            """Récupère une seule valeur du résultat (la première colonne de la première ligne)."""
+            if getattr(self.result, 'scalar', None):
+                return self.result.scalar()
+            elif self.result:
+                row = self.result.fetchone()
+                if row:
+                    return row[0]
+            return None
+
         def commit(self):
             self.session.commit()
 
@@ -432,9 +442,16 @@ def to_json(data: Any) -> Optional[str]:
     return json.dumps(data, ensure_ascii=False) if data is not None else None
 
 
-def from_json(json_str: Optional[str]) -> Any:
-    """Désérialise une chaîne JSON en objet Python."""
-    return json.loads(json_str) if json_str is not None else None
+def from_json(json_str: Any) -> Any:
+    """Désérialise une chaîne JSON en objet Python (ou retourne tel quel si déjà décodé)."""
+    if json_str is None:
+        return None
+    if isinstance(json_str, (list, dict)):
+        return json_str
+    try:
+        return json.loads(json_str)
+    except (ValueError, TypeError):
+        return json_str
 
 
 # ============================================
@@ -467,7 +484,7 @@ class BaseRepository:
         """Returns the total number of records in the table."""
         with get_db_connection() as session:
             return session.execute(
-                text(f"SELECT COUNT(*) FROM {self.model.__tablename__}")
+                f"SELECT COUNT(*) FROM {self.model.__tablename__}"
             ).scalar() or 0
 
 
@@ -479,11 +496,11 @@ class MetriqueQualiteAAVRepository(BaseRepository):
         """Creates a MetriqueQualiteAAV and returns it with its new ID."""
         with get_db_connection() as session:
             max_id = session.execute(
-                text("SELECT MAX(id_metrique) FROM metrique_qualite_aav")
+                "SELECT MAX(id_metrique) FROM metrique_qualite_aav"
             ).scalar() or 0
 
             session.execute(
-                text("""
+                """
                     INSERT INTO metrique_qualite_aav (
                         id_metrique, id_aav, score_covering_ressources,
                         taux_succes_moyen, est_utilisable, nb_tentatives_total,
@@ -495,7 +512,7 @@ class MetriqueQualiteAAVRepository(BaseRepository):
                         :nb_apprenants_distincts, :ecart_type_scores,
                         :date_calcul, :periode_debut, :periode_fin
                     )
-                """),
+                """,
                 {
                     "id_metrique":              max_id + 1,
                     "id_aav":                   data.id_aav,
@@ -527,11 +544,11 @@ class RapportRepository(BaseRepository):
 
         with get_db_connection() as session:
             max_id = session.execute(
-                text("SELECT MAX(id_rapport) FROM rapport_periodique")
+                "SELECT MAX(id_rapport) FROM rapport_periodique"
             ).scalar() or 0
 
             session.execute(
-                text("""
+                """
                     INSERT INTO rapport_periodique (
                         id_rapport, type_rapport, id_cible, date_generation,
                         periode_debut, periode_fin, format, contenu, format_fichier
@@ -539,7 +556,7 @@ class RapportRepository(BaseRepository):
                         :id_rapport, :type_rapport, :id_cible, :date_generation,
                         :periode_debut, :periode_fin, :format, :contenu, :format_fichier
                     )
-                """),
+                """,
                 {
                     "id_rapport":      max_id + 1,
                     "type_rapport":    data.type_rapport,
@@ -566,10 +583,10 @@ class EnseignantRepository(BaseRepository):
     def create(self, data):
         with get_db_connection() as session:
             result = session.execute(
-                text("""
+                """
                     INSERT INTO enseignant (nom, email, discipline)
                     VALUES (:nom, :email, :discipline)
-                """),
+                """,
                 {
                     "nom":        data.nom,
                     "email":      data.email,

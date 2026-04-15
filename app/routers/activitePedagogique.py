@@ -12,7 +12,7 @@ from app.database import SessionLocal, ActivitePedagogiqueModel, ExerciceInstanc
 import json
 from datetime import datetime
 
-router = APIRouter(prefix="/activites", tags=["Activities"])
+router = APIRouter(tags=["Activities"])
 
 @router.get("/types")
 def get_activity_types(db: Session = Depends(get_db)):

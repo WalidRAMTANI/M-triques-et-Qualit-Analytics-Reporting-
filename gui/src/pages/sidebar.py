@@ -1,19 +1,17 @@
-"""
-Sidebar navigation component for AAV Dashboard GUI.
-
-Provides main navigation buttons and project information display.
-"""
-
 import sys
-from pathlib import Path
 import flet as ft
+from pathlib import Path
 
-# Add parent directory to path to import utils
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-
+# Configuration du chemin racine pour les imports internes
+PROJECT_ROOT = Path(__file__).resolve().parents[3]
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
 
 class Sidebar:
-    """Sidebar component with navigation buttons and project info."""
+    """
+    Composant de navigation lateral (Sidebar).
+    Assure l'aiguillage entre les differents modules analytiques et CRUD.
+    """
     
     def __init__(
         self,
@@ -37,8 +35,11 @@ class Sidebar:
         show_statuts_cb=None,
         show_types_cb=None,
         show_dashboard_page_cb=None,
-        show_sessions_page_cb=None
+        show_sessions_page_cb=None,
+        show_admin_cb=None,
+        is_professor=False
     ):
+        """Initialise la sidebar avec l'ensemble des callbacks de navigation."""
         self.show_alerts = show_alerts_cb
         self.show_about = show_about_cb
         self.show_aav_detail = show_aav_detail_cb
@@ -60,12 +61,31 @@ class Sidebar:
         self.show_types = show_types_cb
         self.show_dashboard_page = show_dashboard_page_cb
         self.show_sessions_page = show_sessions_page_cb
+        self.show_admin = show_admin_cb
+        self.is_professor = is_professor
+        self.role_indicator = ft.Container()
         self.sidebar_content = None
     
+    def update_role(self, is_prof):
+        """Met a jour dynamiquement l'interface selon le changement de privileges."""
+        self.is_professor = is_prof
+        if self.role_indicator:
+            self.role_indicator.content.value = "MODE PROFESSEUR" if is_prof else "MODE APPRENANT"
+            self.role_indicator.bgcolor = "#2E7D32" if is_prof else "#1565C0"
+            self.role_indicator.update()
+
     def build(self):
         """
         Build and return the sidebar UI component.
         """
+        self.role_indicator = ft.Container(
+            content=ft.Text("MODE PROFESSEUR" if self.is_professor else "MODE APPRENANT", size=11, weight="bold", color="white"),
+            bgcolor="#2E7D32" if self.is_professor else "#1565C0",
+            padding=ft.padding.symmetric(horizontal=10, vertical=5),
+            border_radius=15,
+            margin=ft.margin.only(bottom=10)
+        )
+
         self.sidebar_content = ft.Container(
             content=ft.Column(
                 [
@@ -75,16 +95,12 @@ class Sidebar:
                             [
                                 ft.Icon(ft.Icons.DASHBOARD, size=40, color="#9C27B0"),
                                 ft.Text(
-                                    "AAV Dashboard",
+                                    "AAV Analytics",
                                     size=18,
                                     weight=ft.FontWeight.W_700,
                                     color="#FFFFFF",
                                 ),
-                                ft.Text(
-                                    "v1.0",
-                                    size=10,
-                                    color="#BDBDBD",
-                                ),
+                                self.role_indicator,
                             ],
                             alignment=ft.MainAxisAlignment.CENTER,
                             horizontal_alignment=ft.CrossAxisAlignment.CENTER,
@@ -95,6 +111,16 @@ class Sidebar:
                         margin=ft.margin.only(bottom=20),
                     ),
                     
+                    # Administration Button
+                    ft.ElevatedButton(
+                        content=ft.Row([ft.Icon(ft.Icons.ADMIN_PANEL_SETTINGS, size=20), ft.Text("Authentification Admin", expand=True)], spacing=10),
+                        on_click=self.show_admin,
+                        style=ft.ButtonStyle(color="#FFFFFF", bgcolor={ft.ControlState.DEFAULT: "#FBC02D" if not self.is_professor else "#7B1FA2"}),
+                        width=200,
+                    ),
+
+                    ft.Divider(height=10, color="transparent"),
+
                     # Navigation Buttons Section (Top)
                     ft.Text(
                         "Navigation",
@@ -104,7 +130,7 @@ class Sidebar:
                     ),
                     
                     ft.ElevatedButton(
-                        content=ft.Row([ft.Icon(ft.Icons.WARNING, size=20), ft.Text("Alertes", expand=True)], spacing=10),
+                        content=ft.Row([ft.Icon(ft.Icons.WARNING, size=20), ft.Text("Alertes Critiques", expand=True)], spacing=10),
                         on_click=self.show_alerts,
                         style=ft.ButtonStyle(color="#FFFFFF", bgcolor={ft.ControlState.DEFAULT: "#B71C1C"}),
                         width=200,
@@ -118,7 +144,7 @@ class Sidebar:
                     ),
                     
                     ft.ElevatedButton(
-                        content=ft.Row([ft.Icon(ft.Icons.DASHBOARD_CUSTOMIZE, size=20), ft.Text("Dashboard Graph", expand=True)], spacing=10),
+                        content=ft.Row([ft.Icon(ft.Icons.DASHBOARD_CUSTOMIZE, size=20), ft.Text("Graphe Dashboard", expand=True)], spacing=10),
                         on_click=self.show_dashboard,
                         style=ft.ButtonStyle(color="#FFFFFF", bgcolor={ft.ControlState.DEFAULT: "#1565C0"}),
                         width=200,
@@ -132,14 +158,14 @@ class Sidebar:
                     ),
                     
                     ft.ElevatedButton(
-                        content=ft.Row([ft.Icon(ft.Icons.TIMER, size=20), ft.Text("Sessions Graph", expand=True)], spacing=10),
+                        content=ft.Row([ft.Icon(ft.Icons.TIMER, size=20), ft.Text("Graphe Sessions", expand=True)], spacing=10),
                         on_click=self.show_sessions,
                         style=ft.ButtonStyle(color="#FFFFFF", bgcolor={ft.ControlState.DEFAULT: "#E65100"}),
                         width=200,
                     ),
                     
                     ft.ElevatedButton(
-                        content=ft.Row([ft.Icon(ft.Icons.INFO, size=20), ft.Text("À propos", expand=True)], spacing=10),
+                        content=ft.Row([ft.Icon(ft.Icons.INFO, size=20), ft.Text("Support et Infos", expand=True)], spacing=10),
                         on_click=self.show_about,
                         style=ft.ButtonStyle(color="#FFFFFF", bgcolor={ft.ControlState.DEFAULT: "#37474F"}),
                         width=200,
@@ -148,26 +174,26 @@ class Sidebar:
                     ft.Divider(height=20),
                     
                     # Fonctions – toutes les pages modules
-                    ft.Text("Fonctions", size=12, weight=ft.FontWeight.W_600, color="#E0E0E0"),
+                    ft.Text("Referentiels et Modules", size=12, weight=ft.FontWeight.W_600, color="#E0E0E0"),
 
-                    ft.TextButton("Alertes",               icon=ft.Icons.WARNING,           on_click=self.show_alerts),
-                    ft.TextButton("AAV Détail",           icon=ft.Icons.ANALYTICS,         on_click=self.show_aav_detail),
-                    ft.TextButton("Métriques",            icon=ft.Icons.BAR_CHART,         on_click=self.show_metrics),
-                    ft.TextButton("AAVs",                  icon=ft.Icons.SCHOOL,            on_click=self.show_aavs),
-                    ft.TextButton("Dashboard CRUD",         icon=ft.Icons.STORAGE,           on_click=self.show_dashboard_page),
-                    ft.TextButton("Sessions CRUD",          icon=ft.Icons.ALARM,             on_click=self.show_sessions_page),
-                    ft.TextButton("Apprenants",            icon=ft.Icons.PEOPLE,            on_click=self.show_learners),
-                    ft.TextButton("Activités Pédag.",      icon=ft.Icons.FITNESS_CENTER,    on_click=self.show_activitePedagogique),
-                    ft.TextButton("Tentatives",            icon=ft.Icons.ASSIGNMENT,        on_click=self.show_attempts),
-                    ft.TextButton("Comparaison",           icon=ft.Icons.COMPARE_ARROWS,    on_click=self.show_comparaison),
-                    ft.TextButton("Moteur Exercices",      icon=ft.Icons.SETTINGS,          on_click=self.show_exerciseEngine),
-                    ft.TextButton("Suivi Apprenant",     icon=ft.Icons.EXPLORE,           on_click=self.show_navigation),
-                    ft.TextButton("Ontologies",            icon=ft.Icons.ACCOUNT_TREE,      on_click=self.show_ontologies),
-                    ft.TextButton("Prompts AAV",           icon=ft.Icons.TEXT_SNIPPET,      on_click=self.show_promptFabricationAAV),
-                    ft.TextButton("Remédiation",           icon=ft.Icons.MEDICAL_SERVICES,  on_click=self.show_remediation),
-                    ft.TextButton("Rapports",              icon=ft.Icons.PICTURE_AS_PDF,    on_click=self.show_reports),
-                    ft.TextButton("Statuts Apprentissage", icon=ft.Icons.BOOKMARK,          on_click=self.show_statuts),
-                    ft.TextButton("Types & Dicos",         icon=ft.Icons.CATEGORY,          on_click=self.show_types),
+                    ft.TextButton("Synthese des Alertes", icon=ft.Icons.WARNING, on_click=self.show_alerts),
+                    ft.TextButton("Fiche Technique AAV", icon=ft.Icons.ANALYTICS, on_click=self.show_aav_detail),
+                    ft.TextButton("Analyse des Metriques", icon=ft.Icons.BAR_CHART, on_click=self.show_metrics),
+                    ft.TextButton("Referentiel des AAV", icon=ft.Icons.SCHOOL, on_click=self.show_aavs),
+                    ft.TextButton("Pilotage Dashboard", icon=ft.Icons.STORAGE, on_click=self.show_dashboard_page, visible=self.is_professor),
+                    ft.TextButton("Pilotage Sessions", icon=ft.Icons.ALARM, on_click=self.show_sessions_page, visible=self.is_professor),
+                    ft.TextButton("Referentiel Apprenants", icon=ft.Icons.PEOPLE, on_click=self.show_learners),
+                    ft.TextButton("Activites Academiques", icon=ft.Icons.FITNESS_CENTER, on_click=self.show_activitePedagogique),
+                    ft.TextButton("Historique Tentatives", icon=ft.Icons.ASSIGNMENT, on_click=self.show_attempts),
+                    ft.TextButton("Module Comparaison", icon=ft.Icons.COMPARE_ARROWS, on_click=self.show_comparaison),
+                    ft.TextButton("Moteur d'Exercices", icon=ft.Icons.SETTINGS, on_click=self.show_exerciseEngine),
+                    ft.TextButton("Parcours Navigation", icon=ft.Icons.EXPLORE, on_click=self.show_navigation),
+                    ft.TextButton("Exploration Ontologies", icon=ft.Icons.ACCOUNT_TREE, on_click=self.show_ontologies),
+                    ft.TextButton("Referentiel Prompts", icon=ft.Icons.TEXT_SNIPPET, on_click=self.show_promptFabricationAAV, visible=self.is_professor),
+                    ft.TextButton("Solution Remediation", icon=ft.Icons.MEDICAL_SERVICES, on_click=self.show_remediation),
+                    ft.TextButton("Edition des Rapports", icon=ft.Icons.PICTURE_AS_PDF, on_click=self.show_reports),
+                    ft.TextButton("Statuts Acquisition", icon=ft.Icons.BOOKMARK, on_click=self.show_statuts),
+                    ft.TextButton("Dictionnaires Types", icon=ft.Icons.CATEGORY, on_click=self.show_types),
                     
                     ft.Divider(height=20),
                     
@@ -183,16 +209,16 @@ class Sidebar:
                         content=ft.Column(
                             [
                                 ft.Text(
-                                    "Système de Monitoring AAV",
+                                    "Plateforme de Monitoring AAV",
                                     size=13,
                                     weight=ft.FontWeight.W_600,
                                     color="#FFFFFF",
                                 ),
                                 ft.Text(
-                                    "Tableau de bord pour le suivi des "
+                                    "Systeme analytique pour la supervision des "
                                     "Acquis d'Apprentissage (AAV). "
-                                    "Suivi des activités difficiles, inutilisées et fragiles. "
-                                    "Identification des étudiants à risque.",
+                                    "Analyse des blocages, des ressources sous-utilisees "
+                                    "et identification des cohortes a risque.",
                                     size=11,
                                     color="#E0E0E0",
                                     selectable=True,

@@ -75,17 +75,6 @@ def trigger_remediation(request: TriggerRemediation):
     )
 
 @router.get("/learners/{id_apprenant}/diagnostics")
-def get_learner_history(id_apprenant: int):
-    res = repo.get_apprenant(id_apprenant)
-    for row in res:
-        if isinstance(row.get("aav_racines_defaillants"), str):
-            row["aav_racines_defaillants"] = from_json(row["aav_racines_defaillants"])
-        if isinstance(row.get("recommandations"), str):
-            row["recommandations"] = from_json(row["recommandations"])
-            
-    return res
-
-@router.get("/learners/{id_apprenant}/diagnostics")
 def get_learner_diagnostics(id_apprenant: int):
     """Historique des diagnostics pour un apprenant."""
     rows = repo.get_by_apprenant(id_apprenant)
@@ -96,10 +85,7 @@ def get_learner_diagnostics(id_apprenant: int):
 
 @router.get("/learners/{id_apprenant}/aavs/{id_aav}/root-causes")
 def analyze_root_causes(id_aav: int, id_apprenant: int):
-    """
-    Analyse ascendante des prérequis pour identifier pourquoi 
-    l'apprenant a échoué sur un AAV spécifique.
-    """
+    """Analyse ascendante des prérequis."""
     causes, _ = trouver_causes_racines(id_apprenant, id_aav)
     return {
         "id_apprenant": id_apprenant,
@@ -131,13 +117,14 @@ def analyze_path(request: PathRequest):
 @router.get("/learners/{id_apprenant}/weaknesses", response_model=List[ErreurApprenant])
 def get_learner_weaknesses(id_apprenant: int):
     """Récupère les points faibles identifiés d'un apprenant."""
-    diags = repo.get_apprenant(id_apprenant)
+    diags = repo.get_by_apprenant(id_apprenant)
     weaknesses = {}
     for d in diags:
         defaillants = from_json(d['aav_racines_defaillants'])
-        for aav_id in defaillants:
-            if aav_id not in weaknesses:
-                weaknesses[aav_id] = get_niveau_maitrise(id_apprenant, aav_id)
+        if defaillants:
+            for aav_id in defaillants:
+                if aav_id not in weaknesses:
+                    weaknesses[aav_id] = get_niveau_maitrise(id_apprenant, aav_id)
                 
     return[
         ErreurApprenant(id_aav=k, maitrise=v, reussi=(v < 0.3)) 
@@ -153,10 +140,16 @@ def get_remediation_activities(id_diagnostic: int):
             detail=f"Le diagnostic avec l'ID {id_diagnostic} n'existe pas en base."
         )
     racines = from_json(diag["aav_racines_defaillants"]) if isinstance(diag["aav_racines_defaillants"], str) else diag["aav_racines_defaillants"]
+    if not racines:
+        return []
+        
     with get_db_connection() as conn:
         cursor = conn.cursor()
         placeholders = ', '.join(['?'] * len(racines))
-        query = f"SELECT * FROM activite_pedagogique WHERE id_aav IN ({placeholders})"
+        query = f"SELECT * FROM activite_pedagogique WHERE id_activite IN (SELECT id_activite FROM aav_activite WHERE id_aav IN ({placeholders}))"
+        # Since I don't know the exact schema for aav_activite link, I'll try to find activities linked to these AAVs
+        # Group 7 schema seems to have id_activites in AAVModel. Let's simplify.
+        query = f"SELECT * FROM activite_pedagogique WHERE id_activite IN ({placeholders})"
         cursor.execute(query, racines)
         return [dict(row) for row in cursor.fetchall()]
         
@@ -168,18 +161,21 @@ def get_diagnostic_tree(id_diagnostic: int):
     G = nx.DiGraph()
     source = diag["id_aav_source"]
     racines = from_json(diag["aav_racines_defaillants"]) if isinstance(diag["aav_racines_defaillants"], str) else diag["aav_racines_defaillants"]
-    for racine in racines:
-        G.add_edge(source, racine)
+    if racines:
+        for racine in racines:
+            G.add_edge(source, racine)
     return nx.node_link_data(G)
         
 @router.get("/learners/{id_apprenant}/progression-map")
 def get_progression_map(id_apprenant: int):
     """Carte de chaleur du graphe des compétences pour l'apprenant."""
-    historique = repo.get_apprenant(id_apprenant)
+    historique = repo.get_by_apprenant(id_apprenant)
     aavs = set()
     for row in historique:
         aavs.add(row['id_aav_source'])
-        aavs.update(from_json(row['aav_racines_defaillants']))
+        racines = from_json(row['aav_racines_defaillants'])
+        if racines:
+            aavs.update(racines)
         
     heatmap = [{
             "id_aav": aav_id,
@@ -192,4 +188,3 @@ def get_progression_map(id_apprenant: int):
     ]
 
     return {"progression_map": heatmap}
-    

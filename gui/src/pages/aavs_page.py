@@ -1,280 +1,298 @@
-"""
-AAVs page – style épuré (fond blanc, champ de recherche, boîte résultat,
-boutons colorés, popups AlertDialog).
-"""
-
 import sys
-from pathlib import Path
+import httpx
+import json
+import networkx as nx
+import matplotlib
 import flet as ft
+from pathlib import Path
+from matplotlib.figure import Figure
+from matplotlib.backends.backend_agg import FigureCanvasAgg
+from flet.matplotlib_chart import MatplotlibChart
 
+# Configuration du chemin racine pour les imports internes
 PROJECT_ROOT = Path(__file__).resolve().parents[3]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-from app.routers import aavs
-from app.database import SessionLocal
-
+# Parametres de l'API
+BASE_URL = "http://127.0.0.1:8000"
 
 class AavsPage:
-    def __init__(self, content_area):
+    """
+    Page de gestion et de visualisation des Acquis d'Apprentissage Vises (AAV).
+    Propose une recherche filtree, des fiches detaillees et une analyse graphique de l'ontologie.
+    """
+
+    def __init__(self, content_area, is_professor=False):
+        """Initialise les filtres, la zone de liste et le conteneur de details."""
         self.content_area = content_area
+        self.is_professor = is_professor
         self._page = None
-        self.affichage_resultat = None
-        self.champ_id = None
-        self.bouton_modifier = None
-        self.bouton_supprimer = None
-
-    # ─── helpers ──────────────────────────────────────────────────────────────
-
-    def _fmt_aav(self, res: dict) -> str:
-        return (
-            f"ID AAV        : {res.get('id_aav', 'N/A')}\n"
-            f"Nom           : {res.get('nom', 'N/A')}\n"
-            f"Libellé       : {res.get('libelle_integration', 'N/A')}\n"
-            f"Discipline    : {res.get('discipline', 'N/A')}\n"
-            f"Enseignement  : {res.get('enseignement', 'N/A')}\n"
-            f"Type AAV      : {res.get('type_aav', 'N/A')}\n"
-            f"Type Éval.    : {res.get('type_evaluation', 'N/A')}\n"
-            f"Statut        : {'Actif' if res.get('is_active', True) else 'Inactif'}\n"
-            f"Version       : {res.get('version', 'N/A')}\n"
-            f"Description   :\n{res.get('description_markdown', 'N/A')}\n"
+        self.all_aavs = []
+        self.filtered_aavs = []
+        
+        self.search_field = ft.TextField(
+            label="Recherche par intitulé", on_change=self.filter_data, 
+            expand=True, prefix_icon=ft.Icons.SEARCH
         )
+        self.discipline_filter = ft.Dropdown(
+            label="Discipline", width=200, on_change=self.filter_data, 
+            options=[ft.dropdown.Option("Toutes")]
+        )
+        self.type_filter = ft.Dropdown(
+            label="Typologie", width=150, on_change=self.filter_data, 
+            options=[
+                ft.dropdown.Option("Tous"),
+                ft.dropdown.Option("Atomique"),
+                ft.dropdown.Option("Composite")
+            ]
+        )
+        
+        self.list_view = ft.ListView(expand=True, spacing=10, padding=10)
+        self.detail_container = ft.Container(
+            expand=True, padding=20, border_radius=12, 
+            bgcolor="#FFFFFF", border=ft.border.all(1, "#E3F2FD"),
+            content=ft.Column([ft.Text("Veuillez selectionner un referentiel.", italic=True, color="grey")], alignment=ft.MainAxisAlignment.CENTER)
+        )
+        self.selected_id = None
 
-    def _set_result(self, text: str, color: str = "#212121"):
-        self.affichage_resultat.value = text
-        self.affichage_resultat.color = color
-        self._page.update()
-
-    # ─── actions ──────────────────────────────────────────────────────────────
-
-    def rechercher(self, e=None):
-        if not self.champ_id.value:
-            return
-        db = SessionLocal()
-        try:
-            res = aavs.get_aav(int(self.champ_id.value), db)
-            self._set_result(self._fmt_aav(res))
-            self.bouton_modifier.visible = True
-            self.bouton_supprimer.visible = True
-        except Exception as err:
-            self._set_result(f"Erreur : AAV #{self.champ_id.value} introuvable\n{err}", "#F44336")
-            self.bouton_modifier.visible = False
-            self.bouton_supprimer.visible = False
-        finally:
-            db.close()
+    def _set_detail(self, control: ft.Control):
+        """Met a jour la zone d'affichage detaillee avec le composant fourni."""
+        self.detail_container.content = control
+        if self._page:
             self._page.update()
 
-    def ouvrir_liste(self, e):
-        db = SessionLocal()
+    def load_data(self, e=None):
+        """Charge l'integralite du referentiel AAV via l'API REST."""
         try:
-            res_list = aavs.get_aavs(db=db)
+            r = httpx.get(f"{BASE_URL}/aavs/", timeout=10)
+            if r.status_code == 200:
+                self.all_aavs = r.json()
+                disciplines = sorted(list(set(a.get("discipline") for a in self.all_aavs if a.get("discipline"))))
+                self.discipline_filter.options = [ft.dropdown.Option("Toutes")] + [ft.dropdown.Option(d) for d in disciplines]
+                self.filter_data(None)
         except Exception as err:
-            self._set_result(f"Erreur liste : {err}", "#F44336")
-            db.close()
-            return
-        db.close()
+            print(f"Erreur chargement referentiel : {err}")
 
-        def selectionner(id_v):
-            self.champ_id.value = str(id_v)
-            dialog.open = False
+    def filter_data(self, e):
+        """Filtre la liste locale des AAV en fonction des criteres saisis."""
+        search = self.search_field.value.lower() if self.search_field.value else ""
+        disc = self.discipline_filter.value
+        atype = self.type_filter.value
+        
+        self.filtered_aavs = []
+        for a in self.all_aavs:
+            if search and search not in a.get("nom", "").lower(): continue
+            if disc and disc != "Toutes" and a.get("discipline") != disc: continue
+            is_composite = bool(a.get("enfants_ids") or a.get("type_aav") == "composite")
+            if atype == "Atomique" and is_composite: continue
+            if atype == "Composite" and not is_composite: continue
+            self.filtered_aavs.append(a)
+        self.update_list()
+
+    def update_list(self):
+        """Actualise visuellement la liste des acquis dans le menu lateral."""
+        items = []
+        for a in self.filtered_aavs:
+            is_comp = bool(a.get("enfants_ids"))
+            is_selected = self.selected_id == a["id_aav"]
+            items.append(ft.ListTile(
+                leading=ft.Icon(
+                    ft.Icons.SUBDIRECTORY_ARROW_RIGHT if is_comp else ft.Icons.RADIO_BUTTON_CHECKED, 
+                    color="#1565C0" if not is_comp else "#6A1B9A"
+                ),
+                title=ft.Text(a.get("nom", f"AAV #{a['id_aav']}"), weight="bold"),
+                subtitle=ft.Text(f"{a.get('discipline')} | {a.get('enseignement')}"),
+                trailing=ft.Text(f"#{a['id_aav']}", size=12, color="grey"),
+                bgcolor="#E3F2FD" if is_selected else None,
+                on_click=lambda e, aav=a: self.show_detail(aav)
+            ))
+        self.list_view.controls = items
+        if self._page:
             self._page.update()
-            self.rechercher()
 
-        items = [
-            ft.ListTile(
-                leading=ft.Icon(ft.Icons.SCHOOL, color="#1565C0"),
-                title=ft.Text(f"AAV #{a['id_aav']} — {a.get('nom', '')}", weight="bold"),
-                subtitle=ft.Text(f"{a.get('discipline', '')} | {a.get('enseignement', '')}"),
-                on_click=lambda e, id_v=a["id_aav"]: selectionner(id_v),
-            )
-            for a in res_list
-        ]
-        dialog = ft.AlertDialog(
-            title=ft.Text("Liste de toutes les AAVs"),
-            content=ft.Container(
-                content=ft.ListView(items, spacing=8, padding=10),
-                width=520, height=560,
-            ),
-            actions=[ft.TextButton("Fermer", on_click=lambda _: setattr(dialog, "open", False) or self._page.update())],
-        )
-        self._page.overlay.append(dialog)
-        dialog.open = True
-        self._page.update()
-
-    def ouvrir_creation(self, e):
-        champ_nom = ft.TextField(label="Nom", width=420)
-        champ_libelle = ft.TextField(label="Libellé Integration", width=420)
-        champ_discipline = ft.TextField(label="Discipline", width=420)
-        champ_enseignement = ft.TextField(label="Enseignement", width=420)
-
-        def valider(ev):
-            db = SessionLocal()
-            try:
-                donnees = {
-                    "nom": champ_nom.value,
-                    "libelle_integration": champ_libelle.value,
-                    "discipline": champ_discipline.value,
-                    "enseignement": champ_enseignement.value,
-                }
-                res = aavs.create_aav(donnees, db)
-                dialog.open = False
-                self.champ_id.value = str(res["id_aav"])
-                self._page.update()
-                self.rechercher()
-            except Exception as err:
-                self._set_result(f"Erreur création : {err}", "#F44336")
-            finally:
-                db.close()
-
-        dialog = ft.AlertDialog(
-            title=ft.Text("Créer une nouvelle AAV"),
-            content=ft.Column([champ_nom, champ_libelle, champ_discipline, champ_enseignement], tight=True),
-            actions=[
-                ft.TextButton("Annuler", on_click=lambda _: setattr(dialog, "open", False) or self._page.update()),
-                ft.ElevatedButton("Créer", on_click=valider, bgcolor=ft.Colors.GREEN_400, color=ft.Colors.WHITE),
-            ],
-        )
-        self._page.overlay.append(dialog)
-        dialog.open = True
-        self._page.update()
-
-    def ouvrir_modifier(self, e):
-        if not self.champ_id.value:
-            return
-        db = SessionLocal()
+    def show_detail(self, a_summary):
+        """Affiche les details d'un AAV et prepare les options de visualisation graphique."""
         try:
-            res = aavs.get_aav(int(self.champ_id.value), db)
-        except Exception as err:
-            self._set_result(f"Erreur : {err}", "#F44336")
-            db.close()
-            return
-        db.close()
+            r = httpx.get(f"{BASE_URL}/aavs/{a_summary['id_aav']}", timeout=10)
+            a = r.json() if r.status_code == 200 else a_summary
+        except:
+            a = a_summary
 
-        champ_nom = ft.TextField(label="Nom", value=res.get("nom", ""), width=420)
-        champ_libelle = ft.TextField(label="Libellé Integration", value=res.get("libelle_integration", ""), width=420)
-        champ_discipline = ft.TextField(label="Discipline", value=res.get("discipline", ""), width=420)
-        champ_enseignement = ft.TextField(label="Enseignement", value=res.get("enseignement", ""), width=420)
+        self.selected_id = a["id_aav"]
+        self.update_list()
+        desc = a.get("description_markdown") or "Aucune description technique disponible."
+        
+        content = ft.Column([
+            ft.Row([
+                ft.Text(a.get("nom", ""), size=22, weight="bold", color="#1565C0", expand=True),
+                ft.Chip(label=ft.Text(f"REF: {a['id_aav']}"), bgcolor="#E3F2FD")
+            ]),
+            ft.Row([ft.Icon(ft.Icons.SCHOOL, size=16, color="grey"), ft.Text(f"{a.get('discipline')} - {a.get('enseignement')}", color="grey")]),
+            ft.Divider(height=30),
+            ft.Text("Descriptif Pedagogique :", weight="bold", size=16),
+            ft.Markdown(desc, selectable=True, extension_set=ft.MarkdownExtensionSet.GITHUB_FLAVORED),
+            ft.Divider(height=20),
+            ft.Row([
+                ft.Column([
+                    ft.Text("Prerequis techniques :", weight="bold"),
+                    ft.Row([ft.Chip(label=ft.Text(f"#{p}")) for p in a.get("prerequis_ids", [])], wrap=True) if a.get("prerequis_ids") else ft.Text("Aucun", size=12, italic=True)
+                ], expand=True),
+                ft.Column([
+                    ft.Text("Sous-competences (Enfants) :", weight="bold"),
+                    ft.Row([ft.Chip(label=ft.Text(f"#{c}"), bgcolor="#F3E5F5") for c in a.get("enfants_ids", [])], wrap=True) if a.get("enfants_ids") else ft.Text("Structure atomique", size=12, italic=True)
+                ], expand=True),
+            ]),
+            ft.Divider(height=10, color="transparent"),
+            ft.Row([
+                ft.ElevatedButton("Analyse Graphique de l'Ontologie", icon=ft.Icons.GRAPHIC_EQ, on_click=lambda _: self.show_graph(a), bgcolor="#546E7A", color="white", expand=True),
+            ], alignment=ft.MainAxisAlignment.CENTER)
+        ], scroll=ft.ScrollMode.AUTO)
+        
+        self._set_detail(content)
 
-        def sauvegarder(ev):
-            db2 = SessionLocal()
-            try:
-                aavs.update_aav(int(self.champ_id.value), {
-                    "nom": champ_nom.value,
-                    "libelle_integration": champ_libelle.value,
-                    "discipline": champ_discipline.value,
-                    "enseignement": champ_enseignement.value,
-                }, db2)
-                self._set_result("✅ AAV modifié avec succès", "#4CAF50")
-            except Exception as err:
-                self._set_result(f"❌ Erreur : {err}", "#F44336")
-            finally:
-                db2.close()
-                dialog.open = False
-                self._page.update()
-                self.rechercher()
+    def show_graph(self, aav):
+        """Gere la generation dynamique du graphe de dependances via NetworkX et Matplotlib."""
+        matplotlib.use('Agg')
+        G = nx.DiGraph()
+        curr_id = aav["id_aav"]
+        curr_name = aav.get("nom", f"AAV #{curr_id}")
+        
+        def get_label(id_val):
+            for item in self.all_aavs:
+                if str(item.get("id_aav")) == str(id_val): return item.get("nom", f"#{id_val}")
+            return f"ID {id_val}"
 
+        def extract_list(data):
+            if not data: return []
+            if isinstance(data, list): return data
+            if isinstance(data, str):
+                try: return json.loads(data)
+                except: return [data]
+            return []
+
+        prereqs = extract_list(aav.get("prerequis_ids"))
+        children = extract_list(aav.get("aav_enfant_ponderation") or aav.get("enfants_ids"))
+
+        G.add_node(curr_name, color="#E64A19")
+        for p_id in prereqs:
+            p_label = get_label(p_id); G.add_node(p_label, color="#1976D2"); G.add_edge(p_label, curr_name)
+        for c_id in children:
+            c_label = get_label(c_id); G.add_node(c_label, color="#388E3C"); G.add_edge(curr_name, c_label)
+
+        fig = Figure(figsize=(8, 6), facecolor='#F5F7FA')
+        ax = fig.add_subplot(111); ax.set_axis_off()
+
+        if len(G.nodes) > 1:
+            pos = nx.spring_layout(G, k=0.8, iterations=50)
+            colors = [nx.get_node_attributes(G, 'color').get(node, "#90A4AE") for node in G.nodes()]
+            nx.draw_networkx_nodes(G, pos, ax=ax, node_color=colors, node_size=2500, alpha=0.9)
+            nx.draw_networkx_labels(G, pos, ax=ax, font_size=9, font_weight="bold")
+            nx.draw_networkx_edges(G, pos, ax=ax, edge_color="#455A64", arrows=True)
+        else:
+            ax.text(0.5, 0.5, "Structure isolee.", ha='center', va='center')
+
+        ax.set_title(f"Visualisation Ontologique : {curr_name}", size=14, weight="bold")
+        chart = MatplotlibChart(fig, expand=True)
+        
         dialog = ft.AlertDialog(
-            title=ft.Text(f"Modifier AAV n°{self.champ_id.value}", size=20, weight="bold"),
-            content=ft.Column([champ_nom, champ_libelle, champ_discipline, champ_enseignement], scroll=ft.ScrollMode.AUTO),
-            actions=[
-                ft.TextButton("Annuler", on_click=lambda _: setattr(dialog, "open", False) or self._page.update()),
-                ft.ElevatedButton("Sauvegarder", on_click=sauvegarder, color="#FFFFFF", bgcolor="#4CAF50"),
-            ],
+            title=ft.Text("Exploration de l'Ontologie"),
+            content=ft.Container(content=chart, width=800, height=600),
+            actions=[ft.TextButton("Fermer", on_click=lambda _: setattr(dialog, "open", False) or self._page.update())]
         )
         self._page.overlay.append(dialog)
         dialog.open = True
         self._page.update()
-
-    def action_supprimer(self, e):
-        if not self.champ_id.value:
-            return
-
-        def confirmer(ev):
-            db = SessionLocal()
-            try:
-                aavs.delete_aav(int(self.champ_id.value), db)
-                self._set_result("✅ AAV supprimé avec succès", "#4CAF50")
-                self.bouton_modifier.visible = False
-                self.bouton_supprimer.visible = False
-            except Exception as err:
-                self._set_result(f"❌ Erreur suppression : {err}", "#F44336")
-            finally:
-                db.close()
-                dialog.open = False
-                self._page.update()
-
-        dialog = ft.AlertDialog(
-            title=ft.Text("Confirmer la suppression", weight="bold"),
-            content=ft.Text(f"Supprimer AAV #{self.champ_id.value} ?"),
-            actions=[
-                ft.TextButton("Annuler", on_click=lambda _: setattr(dialog, "open", False) or self._page.update()),
-                ft.ElevatedButton("Supprimer", on_click=confirmer, color="#FFFFFF", bgcolor="#F44336"),
-            ],
-        )
-        self._page.overlay.append(dialog)
-        dialog.open = True
-        self._page.update()
-
-    # ─── build ────────────────────────────────────────────────────────────────
 
     def build(self, page: ft.Page):
+        """Construit l'interface globale de la page referentiel."""
         self._page = page
-        COLOR_PRIMARY = "#1565C0"
-        COLOR_BG_INPUT = "#E3F2FD"
-        COLOR_BORDER = "#2196F3"
-
-        self.champ_id = ft.TextField(
-            label="Numéro AAV",
-            width=200,
-            keyboard_type=ft.KeyboardType.NUMBER,
-            border_radius=10,
-            border_color=COLOR_BORDER,
-            bgcolor=COLOR_BG_INPUT,
-            prefix_icon=ft.Icons.SEARCH,
-            cursor_color=COLOR_PRIMARY,
-        )
-        self.affichage_resultat = ft.Text("Résultat : aucun", size=14, color="#212121")
-        self.bouton_modifier = ft.ElevatedButton(
-            "Modifier", visible=False, on_click=self.ouvrir_modifier,
-            color="#FFFFFF", bgcolor="#2196F3",
-        )
-        self.bouton_supprimer = ft.ElevatedButton(
-            "Supprimer", visible=False, on_click=self.action_supprimer,
-            color="#FFFFFF", bgcolor="#F44336",
-        )
-
-        boite_resultat = ft.Container(
-            content=ft.Column([self.affichage_resultat], scroll=ft.ScrollMode.ALWAYS),
-            width=600, height=380,
-            bgcolor="#FFFFFF",
-            border_radius=10,
-            padding=16,
-            border=ft.border.all(1, "#BBDEFB"),
-            shadow=ft.BoxShadow(blur_radius=8, color=ft.Colors.with_opacity(0.08, ft.Colors.BLACK)),
-        )
-
+        self.load_data()
+        
         return ft.Container(
-            content=ft.Column(
-                [
-                    ft.Text("AAVs – Acquis d'Apprentissage Visés", size=28, weight="bold", color=COLOR_PRIMARY),
-                    ft.Divider(height=20, color="transparent"),
-                    self.champ_id,
-                    ft.Divider(height=10, color="transparent"),
-                    ft.Row([
-                        ft.ElevatedButton("Rechercher", icon=ft.Icons.SEARCH, on_click=self.rechercher, bgcolor=COLOR_PRIMARY, color=ft.Colors.WHITE),
-                        ft.ElevatedButton("Voir toutes les AAVs", icon=ft.Icons.LIST, on_click=self.ouvrir_liste, bgcolor="#2196F3", color=ft.Colors.WHITE),
-                        ft.ElevatedButton("Nouvelle AAV", icon=ft.Icons.ADD, on_click=self.ouvrir_creation, bgcolor=ft.Colors.GREEN_600, color=ft.Colors.WHITE),
-                    ], alignment=ft.MainAxisAlignment.CENTER),
-                    ft.Divider(height=15, color="transparent"),
-                    boite_resultat,
-                    ft.Divider(height=15, color="transparent"),
-                    ft.Row([self.bouton_modifier, self.bouton_supprimer], alignment=ft.MainAxisAlignment.CENTER, spacing=20),
-                ],
-                horizontal_alignment=ft.CrossAxisAlignment.CENTER,
-                spacing=0,
-                scroll=ft.ScrollMode.AUTO,
-            ),
-            bgcolor="#FFFFFF",
-            expand=True,
-            padding=20,
+            content=ft.Column([
+                ft.Row([
+                    ft.Container(content=ft.Icon(ft.Icons.ARCHITECTURE, color="white", size=30), bgcolor="#1565C0", padding=10, border_radius=10),
+                    ft.Text("Referentiel des Competences (AAV)", size=26, weight="bold", color="#1565C0"),
+                ]),
+                ft.Row([
+                    self.search_field, self.discipline_filter, self.type_filter,
+                    ft.IconButton(ft.Icons.REFRESH, on_click=self.load_data),
+                    ft.ElevatedButton("Nouvel AAV", icon=ft.Icons.ADD, on_click=self.ouvrir_creation, bgcolor="#43A047", color="white", visible=self.is_professor)
+                ], spacing=10),
+                ft.Row([
+                    ft.Container(content=self.list_view, width=400, border=ft.border.all(1, "#E3F2FD"), border_radius=12, bgcolor="#FAFAFA"),
+                    self.detail_container
+                ], expand=True, spacing=20)
+            ], spacing=20),
+            padding=30, expand=True
         )
+
+    def ouvrir_creation(self, e):
+        """Ouvre un dialogue structure pour l'edition/creation d'un nouvel acquis."""
+        selected_prereqs, selected_children = [], []
+        champ_id = ft.TextField(label="Identifiant Unique", keyboard_type=ft.KeyboardType.NUMBER)
+        champ_nom = ft.TextField(label="Intitule de la competence")
+        champ_disc = ft.TextField(label="Domaine disciplinaire")
+        champ_desc = ft.TextField(label="Description technique (Markdown)", multiline=True, min_lines=3)
+        champ_type = ft.SegmentedButton(
+            selected={"atomique"},
+            segments=[ft.Segment(value="atomique", label=ft.Text("Atomique")), ft.Segment(value="composite", label=ft.Text("Composite"))]
+        )
+
+        def get_all_ids_options():
+            return [ft.dropdown.Option(str(a["id_aav"]), f"#{a['id_aav']} {a['nom']}") for a in self.all_aavs]
+
+        drop_prereq = ft.Dropdown(label="Prerequis", options=get_all_ids_options(), width=250)
+        drop_child = ft.Dropdown(label="Dependances", options=get_all_ids_options(), width=250)
+        chip_row_p, chip_row_c = ft.Row(wrap=True), ft.Row(wrap=True)
+
+        def add_id(dropdown, selected_list, chip_row):
+            if dropdown.value and dropdown.value not in selected_list:
+                selected_list.append(dropdown.value)
+                chip_row.controls.append(ft.Chip(label=ft.Text(f"#{dropdown.value}"), on_delete=lambda e, val=dropdown.value: remove_id(val, selected_list, chip_row)))
+                self._page.update()
+
+        def remove_id(val, selected_list, chip_row):
+            selected_list.remove(val); chip_row.controls = [c for c in chip_row.controls if c.label.value != f"#{val}"]
+            self._page.update()
+
+        def valider(ev):
+            is_composite = "composite" in champ_type.selected
+            try:
+                payload = {
+                    "id_aav": int(champ_id.value) if champ_id.value else None,
+                    "nom": champ_nom.value, "discipline": champ_disc.value,
+                    "description_markdown": champ_desc.value,
+                    "prerequis_ids": [int(i) for i in selected_prereqs],
+                    "enfants_ids": [int(i) for i in selected_children] if is_composite else []
+                }
+                r = httpx.post(f"{BASE_URL}/aavs/", json=payload)
+                if r.status_code in [200, 201]:
+                    dialog.open = False; self.load_data()
+                else:
+                    self._page.snack_bar = ft.SnackBar(ft.Text("Erreur lors de la validation.")); self._page.snack_bar.open = True
+                self._page.update()
+            except Exception as ex: print(ex)
+
+        btn_add_p = ft.IconButton(ft.Icons.ADD, on_click=lambda _: add_id(drop_prereq, selected_prereqs, chip_row_p))
+        btn_add_c = ft.IconButton(ft.Icons.ADD, on_click=lambda _: add_id(drop_child, selected_children, chip_row_c))
+
+        dialog = ft.AlertDialog(
+            title=ft.Text("Definition Technique AAV"),
+            content=ft.Container(
+                content=ft.Column([
+                    champ_id, champ_nom, champ_disc, champ_desc,
+                    ft.Text("Architecture :", weight="bold"), champ_type,
+                    ft.Row([drop_prereq, btn_add_p]), chip_row_p,
+                    ft.Row([drop_child, btn_add_c]), chip_row_c,
+                ], scroll=ft.ScrollMode.AUTO, spacing=15),
+                width=500, height=600
+            ),
+            actions=[
+                ft.TextButton("Annuler", on_click=lambda _: setattr(dialog, "open", False) or self._page.update()),
+                ft.ElevatedButton("Enregistrer", bgcolor="#43A047", color="white", on_click=valider)
+            ]
+        )
+        self._page.overlay.append(dialog); dialog.open = True; self._page.update()
+

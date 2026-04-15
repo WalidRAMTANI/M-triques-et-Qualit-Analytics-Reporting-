@@ -273,21 +273,23 @@ def collect_data_for_discipline(id_cible: str,format: str) -> dict:
         raise ValueError(f"Format de rapport inconnu : {format}")
 
 def generer_rapport_personnalise(type, id_cible, debut, fin, format):
-    if type == "aav":
-        if not get_aav(int(id_cible)):
-            return None
-        data = collect_data_for_aav(int(id_cible), format)
-    elif type == "student":
-        if not get_student(int(id_cible)):
-            return None
-        data = collect_data_for_student(int(id_cible), format)
-    elif type == "discipline":
-        aavs = [aav for aav in get_all_aavs() if aav["discipline"] == id_cible]
-        if not aavs:
-            return None
-        data = collect_data_for_discipline(id_cible, format)
-    else:
-        raise ValueError(f"Unknown report type: {type}")
+    try:
+        if type == "aav":
+            target_int = int(id_cible)
+            if not get_aav(target_int): return None
+            data = collect_data_for_aav(target_int, format)
+        elif type == "student":
+            target_int = int(id_cible)
+            if not get_student(target_int): return None
+            data = collect_data_for_student(target_int, format)
+        elif type == "discipline":
+            aavs = [aav for aav in get_all_aavs() if aav["discipline"] == id_cible]
+            if not aavs: return None
+            data = collect_data_for_discipline(id_cible, format)
+        else:
+            raise ValueError(f"Unknown report type: {type}")
+    except (ValueError, TypeError):
+        return None
 
     if not data:
         return None
@@ -325,18 +327,22 @@ def generer_rapport_global() -> RapportGlobalResponse:
     inutilises  = detecter_aavs_inutilises()
 
     return RapportGlobalResponse(
-        date_generation=datetime.now().isoformat(),
-        nb_aavs_total=len(aavs),
-        nb_aavs_utilisables=nb_utilisables,
-        nb_alertes= {
-            "difficiles": len(difficiles),
-            "fragiles":   len(fragiles),
-            "inutilises": len(inutilises),
+        titre="Rapport Global de l'Ontologie AAV",
+        date_generation=datetime.now(),
+        contenu={
+            "nb_aavs_total": len(aavs),
+            "nb_aavs_utilisables": nb_utilisables,
+            "nb_alertes": {
+                "difficiles": len(difficiles),
+                "fragiles":   len(fragiles),
+                "inutilises": len(inutilises),
+            },
+            "alertes": {
+                "difficiles": [a.model_dump() for a in difficiles],
+                "fragiles":   [a.model_dump() for a in fragiles],
+                "inutilises": [a.model_dump() for a in inutilises],
+            },
+            "aavs_data": aavs_data,
         },
-        alertes= {
-            "difficiles": [a.model_dump() for a in difficiles],
-            "fragiles":   [a.model_dump() for a in fragiles],
-            "inutilises": [a.model_dump() for a in inutilises],
-        },
-        aavs= aavs_data,
+        format="json"
     )

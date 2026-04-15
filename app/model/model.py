@@ -992,7 +992,7 @@ class LearnerBase(BaseModel):  # ?voir quoi retirer
 
 
 class LearnerCreate(LearnerBase):  # ? rajouter les choses retirées
-    pass
+    id_apprenant: Optional[int] = None
 
 
 class LearnerUpdate(BaseModel):  # Maintenant on est convaincu
@@ -1073,9 +1073,15 @@ class LearningStatus(BaseModel):
     historique_tentatives_ids: List[int] = Field(default_factory=list)
     date_debut_apprentissage: Optional[datetime] = None
     date_derniere_session: Optional[datetime] = None
-    est_maitrise: bool
+    est_maitrise: Optional[bool] = False
 
     model_config = ConfigDict(from_attributes=True)
+
+    @model_validator(mode='after')
+    def validate_maitrise(self) -> 'LearningStatus':
+        if self.est_maitrise is None:
+             self.est_maitrise = False
+        return self
 
     @field_validator('historique_tentatives_ids', mode='before')
     @classmethod
@@ -1086,6 +1092,8 @@ class LearningStatus(BaseModel):
                 return json.loads(v)
             except BaseException:
                 return []
+        if isinstance(v, list):
+            return v
         return v or []
 
 
@@ -1331,7 +1339,7 @@ class StatutApprentissage(BaseModel):
     historique_tentatives_ids: List[int] = []
     date_debut_apprentissage: datetime
     date_derniere_session: Optional[datetime] = None
-    est_maitrise: bool = False
+    est_maitrise: Optional[bool] = False
 
     class Config:
         """Configuration Pydantic V2."""

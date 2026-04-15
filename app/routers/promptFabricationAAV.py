@@ -9,7 +9,6 @@ from app.database import get_db_connection, BaseRepository, to_json, PromptFabri
 
 
 router = APIRouter(
-    prefix="/prompts",
     tags=["Prompts"],
     responses={
         404: {"description": "Prompt non trouvé"},
@@ -98,10 +97,11 @@ def list_prompts(
 @router.get("/{id_prompt}", response_model=PromptFabricationAAV)
 def get_prompt(id_prompt: int):
     """Récupère un prompt spécifique par son identifiant."""
-    data = repo.get_by_id(id_prompt)
-    if not data:
-        raise HTTPException(status_code=404, detail="Prompt non trouvé")
-    return PromptFabricationAAV(**data)
+    with get_db_connection() as session:
+        obj = session.query(PromptFabricationAAVModel).filter(PromptFabricationAAVModel.id_prompt == id_prompt).first()
+        if not obj:
+            raise HTTPException(status_code=404, detail="Prompt non trouvé")
+        return PromptFabricationAAV.model_validate(obj)
 
 
 @router.post("/", response_model=PromptFabricationAAV, status_code=201)

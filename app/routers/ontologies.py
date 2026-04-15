@@ -5,7 +5,7 @@ from app.model.ontologiesPydanticClasses import OntologyCreate, OntologyResponse
 
 
 
-router = APIRouter(prefix="/ontologies", tags=["ontologies"])
+router = APIRouter(tags=["ontologies"])
 
 @router.get("/", summary="Liste des ontologies de référence", response_model = list[OntologyResponse])
 def get_ontologies():

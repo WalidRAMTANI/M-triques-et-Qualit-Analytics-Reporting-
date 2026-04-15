@@ -1,179 +1,112 @@
-"""
-Statuts d'Apprentissage page – style moderne.
-Recherche, CRUD et gestion de la maîtrise des AAVs par apprenant.
-"""
-
 import sys
-from pathlib import Path
+import httpx
 import flet as ft
-import httpx, json
+from pathlib import Path
 
+# Configuration du chemin racine pour les imports internes
 PROJECT_ROOT = Path(__file__).resolve().parents[3]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-BASE_URL = "http://localhost:8000"
-
+# Parametres de l'API
+BASE_URL = "http://127.0.0.1:8000"
 
 class StatutsPage:
+    """
+    Page de suivi des statuts d'apprentissage individuels.
+    Permet de consulter le niveau de maitrise des AAV par apprenant.
+    """
+
     def __init__(self, content_area):
+        """Initialise la page avec les composants de recherche et la zone de resultats."""
         self.content_area = content_area
         self._page = None
-        self.affichage_resultat = None
-        self.champ_id = None
-        self.bouton_modifier = None
-        self.bouton_reset = None
-
-    def _set_result(self, text: str, color: str = "#212121"):
-        self.affichage_resultat.value = text
-        self.affichage_resultat.color = color
-        self._page.update()
-
-    def _get(self, path):
-        r = httpx.get(BASE_URL + path, timeout=5)
-        return json.dumps(r.json(), indent=2, ensure_ascii=False)
-
-    def rechercher(self, e=None):
-        if not self.champ_id.value:
-            return
-        try:
-            self._set_result(self._get(f"/learning-status/{self.champ_id.value}"))
-            self.bouton_modifier.visible = True
-            self.bouton_reset.visible = True
-        except Exception as err:
-            self._set_result(f"Erreur : {err}", "#F44336")
-            self.bouton_modifier.visible = False
-            self.bouton_reset.visible = False
-        self._page.update()
-
-    def voir_liste(self, e):
-        try:
-            data = json.loads(self._get("/learning-status"))
-            items_raw = data if isinstance(data, list) else []
-
-            def selectionner(id_v):
-                self.champ_id.value = str(id_v)
-                dialog.open = False
-                self._page.update()
-                self.rechercher()
-
-            items = [
-                ft.ListTile(
-                    leading=ft.Icon(ft.Icons.BOOKMARK, color="#1565C0"),
-                    title=ft.Text(f"Statut #{s.get('id_statut', s.get('id', '?'))}", weight="bold"),
-                    subtitle=ft.Text(f"AAV: {s.get('id_aav', 'N/A')} | Maîtrise: {s.get('niveau_maitrise', 'N/A')}"),
-                    on_click=lambda e, id_v=s.get("id_statut", s.get("id")): selectionner(id_v),
-                )
-                for s in items_raw
-            ]
-            dialog = ft.AlertDialog(
-                title=ft.Text("Liste des Statuts d'Apprentissage"),
-                content=ft.Container(content=ft.ListView(items, spacing=8, padding=10), width=500, height=500),
-                actions=[ft.TextButton("Fermer", on_click=lambda _: setattr(dialog, "open", False) or self._page.update())],
-            )
-            self._page.overlay.append(dialog)
-            dialog.open = True
-            self._page.update()
-        except Exception as err:
-            self._set_result(f"Erreur liste : {err}", "#F44336")
-
-    def ouvrir_modifier(self, e):
-        if not self.champ_id.value:
-            return
-        champ_niveau = ft.TextField(label="Nouveau niveau de maîtrise", width=300)
-
-        def sauvegarder(ev):
-            try:
-                body = {"niveau_maitrise": champ_niveau.value}
-                r = httpx.patch(BASE_URL + f"/learning-status/{self.champ_id.value}/mastery", json=body, timeout=5)
-                self._set_result(json.dumps(r.json(), indent=2, ensure_ascii=False))
-            except Exception as err:
-                self._set_result(f"❌ Erreur : {err}", "#F44336")
-            finally:
-                dialog.open = False
-                self._page.update()
-
-        dialog = ft.AlertDialog(
-            title=ft.Text(f"Mettre à jour la maîtrise – Statut #{self.champ_id.value}", weight="bold"),
-            content=champ_niveau,
-            actions=[
-                ft.TextButton("Annuler", on_click=lambda _: setattr(dialog, "open", False) or self._page.update()),
-                ft.ElevatedButton("Sauvegarder", on_click=sauvegarder, color="#FFFFFF", bgcolor="#4CAF50"),
-            ],
+        self.champ_id = ft.TextField(
+            label="ID Statut ou Apprenant", width=220, 
+            border_color="#1565C0", keyboard_type=ft.KeyboardType.NUMBER
         )
-        self._page.overlay.append(dialog)
-        dialog.open = True
-        self._page.update()
+        self.result_container = ft.Container(
+            expand=True, padding=20, border_radius=12, 
+            border=ft.border.all(1, "#E3F2FD"), bgcolor="white"
+        )
 
-    def reset(self, e):
-        if not self.champ_id.value:
-            return
-        try:
-            r = httpx.post(BASE_URL + f"/learning-status/{self.champ_id.value}/reset", timeout=5)
-            self._set_result(f"✅ Réinitialisation\n{json.dumps(r.json(), indent=2, ensure_ascii=False)}", "#4CAF50")
-        except Exception as err:
-            self._set_result(f"❌ Erreur reset : {err}", "#F44336")
+    def _set_result(self, control: ft.Control):
+        """Met a jour la zone d'affichage avec les nouvelles donnees chargees."""
+        self.result_container.content = control
+        if self._page:
+            self._page.update()
 
-    def voir_tentatives(self, e):
+    def _format_data(self, data, title):
+        """Formate dynamiquement les donnees API (liste ou dictionnaire) pour l'affichage."""
+        if isinstance(data, list):
+            items = []
+            for d in data:
+                id_s = d.get('id', '???')
+                items.append(ft.ListTile(
+                    leading=ft.Icon(ft.Icons.PERSON_SEARCH, color="#1565C0"),
+                    title=ft.Text(f"Statut #{id_s} (Apprenant #{d.get('id_apprenant', '?')})"),
+                    subtitle=ft.Text(f"AAV #{d.get('id_aav_cible', '?')} - Maitrise: {d.get('niveau_maitrise', 0)*100}%"),
+                    on_click=lambda e, idx=id_s: self.search_by_id(idx)
+                ))
+            return ft.Column([ft.Text(title, weight="bold", size=18), ft.ListView(items, expand=True)], expand=True)
+        
+        rows = [ft.DataRow(cells=[ft.DataCell(ft.Text(k.replace("_", " ").title(), weight="bold")), ft.DataCell(ft.Text(str(v)))]) for k, v in data.items()]
+        return ft.Column([
+            ft.Text(title, weight="bold", size=18, color="#1565C0"),
+            ft.Divider(color="#E3F2FD"),
+            ft.DataTable(columns=[ft.DataColumn(ft.Text("Critere")), ft.DataColumn(ft.Text("Detail"))], rows=rows)
+        ], scroll=ft.ScrollMode.AUTO)
+
+    def search_by_id(self, sid):
+        """Lance une recherche automatique pour un identifiant de statut donne."""
+        self.champ_id.value = str(sid)
+        self.search(None)
+
+    def search(self, e):
+        """Recherche les statuts de maniere intelligente (par ID de statut ou par ID apprenant)."""
         if not self.champ_id.value:
-            return
+            self._set_result(ft.Text("Identifiant requis.")); return
+        self._set_result(ft.ProgressRing(color="#1565C0"))
         try:
-            self._set_result(self._get(f"/learning-status/{self.champ_id.value}/attempts"))
+            r = httpx.get(f"{BASE_URL}/learning-status/{self.champ_id.value}", timeout=10)
+            if r.status_code == 200:
+                self._set_result(self._format_data(r.json(), f"Fiche Statut #{self.champ_id.value}"))
+            else:
+                r2 = httpx.get(f"{BASE_URL}/learning-status", params={"id_apprenant": self.champ_id.value}, timeout=10)
+                if r2.status_code == 200 and r2.json():
+                    self._set_result(self._format_data(r2.json(), f"Statuts - Apprenant #{self.champ_id.value}"))
+                else:
+                    self._set_result(ft.Text("Aucun resultat pour cet ID."))
         except Exception as err:
-            self._set_result(f"Erreur : {err}", "#F44336")
+            self._set_result(ft.Text(f"Erreur technique : {err}"))
+
+    def load_list(self, e):
+        """Charge l'integralite de la liste des statuts d'apprentissage."""
+        self._set_result(ft.ProgressRing(color="#1565C0"))
+        try:
+            r = httpx.get(f"{BASE_URL}/learning-status", timeout=10)
+            if r.status_code == 200:
+                self._set_result(self._format_data(r.json(), "Referentiel des Statuts"))
+            else:
+                self._set_result(ft.Text("Erreur lors du chargement."))
+        except:
+            self._set_result(ft.Text("Serveur inaccessible."))
 
     def build(self, page: ft.Page):
+        """Gere la construction visuelle de la page."""
         self._page = page
-        COLOR_PRIMARY = "#1565C0"
-        COLOR_BG_INPUT = "#E3F2FD"
-        COLOR_BORDER = "#2196F3"
-
-        self.champ_id = ft.TextField(
-            label="Numéro Statut",
-            width=200,
-            keyboard_type=ft.KeyboardType.NUMBER,
-            border_radius=10,
-            border_color=COLOR_BORDER,
-            bgcolor=COLOR_BG_INPUT,
-            prefix_icon=ft.Icons.SEARCH,
-            cursor_color=COLOR_PRIMARY,
-        )
-        self.affichage_resultat = ft.Text("Résultat : aucun", size=14, color="#212121")
-        self.bouton_modifier = ft.ElevatedButton("Modifier Maîtrise", visible=False, on_click=self.ouvrir_modifier, color="#FFFFFF", bgcolor="#2196F3")
-        self.bouton_reset = ft.ElevatedButton("Réinitialiser", visible=False, on_click=self.reset, color="#FFFFFF", bgcolor=ft.Colors.AMBER_700)
-
-        boite_resultat = ft.Container(
-            content=ft.Column([self.affichage_resultat], scroll=ft.ScrollMode.ALWAYS),
-            width=600, height=380,
-            bgcolor="#FFFFFF",
-            border_radius=10,
-            padding=16,
-            border=ft.border.all(1, "#BBDEFB"),
-            shadow=ft.BoxShadow(blur_radius=8, color=ft.Colors.with_opacity(0.08, ft.Colors.BLACK)),
-        )
-
         return ft.Container(
-            content=ft.Column(
-                [
-                    ft.Text("Statuts d'Apprentissage", size=28, weight="bold", color=COLOR_PRIMARY),
-                    ft.Divider(height=20, color="transparent"),
+            content=ft.Column([
+                ft.Row([
+                    ft.Container(content=ft.Icon(ft.Icons.SCHOOL, color="white", size=30), bgcolor="#1565C0", padding=10, border_radius=10),
+                    ft.Text("Statuts d'Apprentissage", size=26, weight="bold", color="#1565C0"),
+                ]),
+                ft.Row([
                     self.champ_id,
-                    ft.Divider(height=10, color="transparent"),
-                    ft.Row([
-                        ft.ElevatedButton("Rechercher", icon=ft.Icons.SEARCH, on_click=self.rechercher, bgcolor=COLOR_PRIMARY, color=ft.Colors.WHITE),
-                        ft.ElevatedButton("Liste Globale", icon=ft.Icons.LIST, on_click=self.voir_liste, bgcolor="#1976D2", color=ft.Colors.WHITE),
-                        ft.ElevatedButton("Tentatives", icon=ft.Icons.HISTORY, on_click=self.voir_tentatives, bgcolor=ft.Colors.AMBER_600, color=ft.Colors.WHITE),
-                    ], alignment=ft.MainAxisAlignment.CENTER, wrap=True),
-                    ft.Divider(height=15, color="transparent"),
-                    boite_resultat,
-                    ft.Divider(height=15, color="transparent"),
-                    ft.Row([self.bouton_modifier, self.bouton_reset], alignment=ft.MainAxisAlignment.CENTER, spacing=20),
-                ],
-                horizontal_alignment=ft.CrossAxisAlignment.CENTER,
-                spacing=0,
-                scroll=ft.ScrollMode.AUTO,
-            ),
-            bgcolor="#FFFFFF",
-            expand=True,
-            padding=20,
+                    ft.ElevatedButton("Rechercher", icon=ft.Icons.SEARCH, on_click=self.search, bgcolor="#1565C0", color="white"),
+                    ft.ElevatedButton("Voir Tout", icon=ft.Icons.LIST, on_click=self.load_list, bgcolor="#1E88E5", color="white"),
+                ]),
+                self.result_container
+            ], spacing=20),
+            padding=30, expand=True
         )

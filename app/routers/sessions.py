@@ -14,7 +14,7 @@ from app.database import (
     TentativeModel, ApprenantModel, from_json, to_json
 )
 
-router = APIRouter(prefix="/sessions", tags=["Sessions"])
+router = APIRouter(tags=["Sessions"])
 
 @router.get("/")
 def list_sessions(db: Session = Depends(get_db)):
@@ -99,15 +99,7 @@ def create_session(session_data: dict, db: Session = Depends(get_db)):
     if not activity:
         raise HTTPException(status_code=404, detail="Activity not found")
     
-    # Verify learner exists
-    learner = db.query(ApprenantModel).filter(
-        ApprenantModel.id_apprenant == session_data.get("id_apprenant")
-    ).first()
-    
-    if not learner:
-        raise HTTPException(status_code=404, detail="Learner not found")
-    
-    # Create new session
+    # Create new session (learner existence is not enforced here)
     new_session = SessionApprenantModel(
         id_activite=session_data["id_activite"],
         id_apprenant=session_data["id_apprenant"],

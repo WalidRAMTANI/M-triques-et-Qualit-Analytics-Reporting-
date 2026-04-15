@@ -1,116 +1,86 @@
 """
-Utility functions for AAV Dashboard GUI.
+Utilitaires de support pour l'interface graphique AAV Dashboard.
 
-Contains:
-- API fetch function
-- UI helper functions (row, section)
-- API constants
+Regroupe les fonctions de communication avec l'API REST, les aides a la
+construction de composants UI standardises et les constantes de configuration.
 """
 
 import flet as ft
 import httpx
 
+# Definitions des points de terminaison de reference
 ALERTS_API = "http://localhost:8000/alerts"
-AAVS_API = "http://localhost:8000/aavs"
-METRIQUE_API = "http://localhost:8000/metriques"
-SESSION_API = "http://localhost:8000/sessions"
+AAV_API = "http://localhost:8000/aavs"
+METRIQUES_API = "http://localhost:8000/metriques"
+SESSIONS_API = "http://localhost:8000/sessions"
 
 def fetch(path, base_api=ALERTS_API):
     """
-    Fetch data from a RESTful API endpoint with error handling.
+    Effectue une requete GET securisee vers un point de terminaison API.
     
-    Makes an HTTP GET request to the specified API endpoint and returns
-    the JSON response. Implements a 5-second timeout and gracefully handles
-    connection errors, timeouts, and HTTP errors.
+    Gere les delais d'attente (timeout) et les erreurs de connectivite
+    en retournant une structure vide en cas d'echec.
     
     Args:
-        path (str): API endpoint path (e.g., "/difficult-aavs", "/students-at-risk/123")
-        base_api (str, optional): Base API URL. Defaults to ALERTS_API.
-            Use AAVS_API for AAV-specific endpoints.
+        path (str): Chemin relatif du critere de recherche.
+        base_api (str, optional): Racine de l'API cible. Par defaut: ALERTS_API.
     
     Returns:
-        list or dict: Parsed JSON response from the API, or empty list [] on failure
-    
-    Raises:
-        No exceptions raised; returns [] on any error (connection, timeout, HTTP errors)
-    
-    Example:
-        >>> difficult_aavs = fetch("/difficult-aavs", ALERTS_API)
-        >>> aav_details = fetch("/123", AAVS_API)
+        list|dict: Donnees JSON decodees ou liste vide en cas d'anomalie.
     """
     try:
-        r = httpx.get(f"{base_api}{path}", timeout=5)
+        r = httpx.get(f"{base_api}{path}", timeout=10)
         return r.json() if r.status_code == 200 else []
     except Exception:
         return []
 
-
 def row(left, right, color="#FFFFFF"):
     """
-    Create a labeled row UI component with two text columns.
+    Genere un composant de ligne informatif bi-colonne.
     
-    Constructs a horizontal Flet Row with a left column (label) and right column (value).
-    The left column uses 70% opacity white text and is expandable, while the right
-    column displays the value in the specified color with bold font weight.
+    Structure une etiquette (label) a gauche et sa valeur associee a droite
+    avec une mise en forme typographique distincte.
     
     Args:
-        left (str): Left column text (typically a label). Expands to fill available space.
-        right (str or int or float): Right column text (typically a value).
-            Automatically converted to string.
-        color (str, optional): Flet color constant for right column text.
-            Defaults to white (#FFFFFF). Common values: #FF5252, #4CAF50, #FF9800
+        left (str): Libelle de l'information (etiquette).
+        right (any): Valeur ou contenu textuel a afficher.
+        color (str, optional): Code couleur hexadesimal pour la valeur.
     
     Returns:
-        ft.Row: Horizontal row control with two text columns
-    
-    Example:
-        >>> row("Status", "Active", "#4CAF50")
-        >>> row("Progression", "75%", "#2196F3")
+        ft.Row: Un composant horizontal Flet structure.
     """
     return ft.Row([
-        ft.Text(left, expand=True, color="#E0E0E0"),
-        ft.Text(right, color=color, weight=ft.FontWeight.W_500),
+        ft.Text(str(left), expand=True, color="#E0E0E0", size=13),
+        ft.Text(str(right), color=color, weight=ft.FontWeight.W_500, selectable=True),
     ])
-
 
 def section(title, items):
     """
-    Create a styled section container with title and content items.
+    Construit un bloc de section structure avec une entête et un corps de contenu.
     
-    Constructs a reusable section component with a semi-transparent background,
-    rounded corners, and padding. Each section includes a title header with divider
-    and a list of content items. If no items are provided, displays a placeholder
-    "No results" message in dimmed text.
+    Encapsule une serie de contrôles dans un conteneur visuel coherent avec
+    une separation claire et une gestion des etats vides.
     
     Args:
-        title (str): Section heading text, displayed in white with font size 16
-        items (list of ft.Control or empty list): List of Flet UI controls to display
-            below the title. Common items: ft.Row, ft.Container, ft.Text.
-            Pass empty list [] to show "No results" message.
+        title (str): Titre de la section (entête).
+        items (list): Liste de composants ft.Control a inserer dans le corps.
     
     Returns:
-        ft.Container: Styled container with background color #2a2a3e (WHITE10),
-            border radius 10px, and 16px padding. Contains vertically-stacked title,
-            divider, and content items.
-    
-    Example:
-        >>> items = [row("Nom", "Calcul"), row("Type", "Exercise")]
-        >>> section("AAV Information", items)
-        
-        >>> section("Empty Section", [])  # Shows "Aucun résultat."
+        ft.Container: Un bloc visuel standardise avec une esthetique premium.
     """
     content_list = [
-        ft.Text(title, size=16, weight=ft.FontWeight.W_500),
-        ft.Divider(height=1),
+        ft.Text(title, size=16, weight=ft.FontWeight.W_600, color="#CE93D8"),
+        ft.Divider(height=2, color="#424242"),
     ]
     if items:
         content_list.extend(items)
     else:
-        content_list.append(ft.Text("Aucun résultat.", color=ft.Colors.WHITE38))
+        content_list.append(ft.Text("Aucune donnee disponible.", color="#757575", italic=True))
     
     return ft.Container(
-        content=ft.Column(content_list),
-        bgcolor=ft.Colors.WHITE10,
-        border_radius=10,
-        padding=16,
+        content=ft.Column(content_list, spacing=12),
+        bgcolor="#2a2a3e",
+        border_radius=12,
+        padding=20,
+        margin=ft.margin.only(bottom=15)
     )

@@ -27,7 +27,7 @@ def generate_rapport_personnalise(request: RapportRequest) -> Rapport:
         format=request.format
     )
     if not rapport:
-        raise HTTPException(status_code=404, detail=f"Aucune donnée trouvée pour la cible {request.id_cible} (Type: {request.type})")
+        raise HTTPException(status_code=404, detail=f"Aucune donnée trouvée pour la cible {request.id_cible} (Type: {request.type_rapport})")
         
     return rapport
 

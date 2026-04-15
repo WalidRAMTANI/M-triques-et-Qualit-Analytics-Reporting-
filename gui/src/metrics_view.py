@@ -60,24 +60,35 @@ def create_metrics_view(page: ft.Page):
         if not target_id:
             return
 
-        res = _get(f"/metrics/aav/{target_id}")
-        if res:
-            affichage_resultat.value = (
-                f"METRIQUES POUR L'AAV #{res.get('id_aav', target_id)}\n"
-                f"{'─' * 40}\n"
-                f"Couverture ressources : {res.get('score_covering_ressources', 0)*100:.1f}%\n"
-                f"Taux de succès moyen : {res.get('taux_succes_moyen', 0)*100:.1f}%\n"
-                f"Est utilisable : {'OUI' if res.get('est_utilisable') else 'NON'}\n"
-                f"Tentatives totales : {res.get('nb_tentatives_total', 0)}\n"
-                f"Apprenants distincts : {res.get('nb_apprenants_distincts', 0)}\n"
-                f"Ecart-type scores : {res.get('ecart_type_scores', 0):.3f}\n"
-                f"Date de calcul : {res.get('date_calcul', 'N/A')}\n"
-            )
-            affichage_resultat.color = COLOR_TEXT_RESULT
-            if not id_aav:
-                champ_chiffre.value = str(target_id)
-        else:
-            affichage_resultat.value = f"Aucune métrique pour l'AAV {target_id} (calculez d'abord)"
+        try:
+            r = httpx.get(f"{BASE_URL}/metrics/aav/{target_id}", timeout=5)
+            if r.status_code == 200:
+                res = r.json()
+                affichage_resultat.value = (
+                    f"METRIQUES POUR L'AAV #{res.get('id_aav', target_id)}\n"
+                    f"{'─' * 40}\n"
+                    f"Couverture ressources : {res.get('score_covering_ressources', 0)*100:.1f}%\n"
+                    f"Taux de succès moyen : {res.get('taux_succes_moyen', 0)*100:.1f}%\n"
+                    f"Est utilisable : {'OUI' if res.get('est_utilisable') else 'NON'}\n"
+                    f"Tentatives totales : {res.get('nb_tentatives_total', 0)}\n"
+                    f"Apprenants distincts : {res.get('nb_apprenants_distincts', 0)}\n"
+                    f"Ecart-type scores : {res.get('ecart_type_scores', 0):.3f}\n"
+                    f"Date de calcul : {res.get('date_calcul', 'N/A')}\n"
+                )
+                affichage_resultat.color = COLOR_TEXT_RESULT
+                if not id_aav:
+                    champ_chiffre.value = str(target_id)
+            elif r.status_code == 404:
+                affichage_resultat.value = f"❌ Aucune métrique pour l'AAV {target_id}.\nAssurez-vous qu'elle existe et lancez un calcul."
+                affichage_resultat.color = ft.Colors.RED_700
+            else:
+                affichage_resultat.value = f"❌ Erreur {r.status_code} lors de la récupération."
+                affichage_resultat.color = ft.Colors.RED_700
+        except httpx.ConnectError:
+            affichage_resultat.value = "❌ Serveur injoignable (le backend est-il lancé ?)"
+            affichage_resultat.color = ft.Colors.RED_700
+        except Exception as err:
+            affichage_resultat.value = f"❌ Erreur : {err}"
             affichage_resultat.color = ft.Colors.RED_700
         page.update()
 
@@ -158,10 +169,19 @@ def create_metrics_view(page: ft.Page):
         try:
             affichage_resultat.value = "Calcul en cours..."
             page.update()
-            res = _post(f"/metrics/aav/{int(champ_chiffre.value)}/calculate")
-            donne_get_metric()
+            r = httpx.post(f"{BASE_URL}/metrics/aav/{int(champ_chiffre.value)}/calculate", timeout=10)
+            if r.status_code in (200, 201):
+                donne_get_metric()
+            else:
+                affichage_resultat.value = f"❌ Échec du calcul (Erreur {r.status_code})"
+                affichage_resultat.color = ft.Colors.RED_700
+                page.update()
+        except httpx.ConnectError:
+            affichage_resultat.value = "❌ Impossible de lancer le calcul : serveur injoignable."
+            affichage_resultat.color = ft.Colors.RED_700
+            page.update()
         except Exception as err:
-            affichage_resultat.value = f"Erreur calcul : {err}"
+            affichage_resultat.value = f"❌ Erreur : {err}"
             affichage_resultat.color = ft.Colors.RED_700
             page.update()
 

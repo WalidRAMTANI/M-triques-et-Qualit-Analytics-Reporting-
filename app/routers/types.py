@@ -1,25 +1,12 @@
-# app/routers/types.py
-"""
-Router for retrieving system types and enumerations.
+from fastapi import APIRouter, Depends
+from sqlalchemy.orm import Session
+from app.database import AAVModel, get_db
 
-This module provides RESTful API endpoints for accessing available types,
-such as activity types, mastery levels, and disciplines.
-"""
-
-from fastapi import APIRouter
-
-router = APIRouter(prefix="/types", tags=["Types"])
+router = APIRouter(tags=["Types"])
 
 
 @router.get("/activity-types")
 def get_activity_types():
-    """
-    Retrieve available activity types.
-    
-    Returns:
-        dict: Dictionary containing list of supported activity types 
-              (pilotee, prof_definie, revision).
-    """
     return {
         "types": [
             "pilotee",
@@ -31,15 +18,6 @@ def get_activity_types():
 
 @router.get("/mastery-levels")
 def get_mastery_levels()->dict:
-    """
-    Retrieve mastery level thresholds for learning assessment.
-    
-    Returns:
-        dict: Dictionary with mastery level names and their numeric thresholds:
-              - master: 0.9 (90% mastery)
-              - intermediate: 0.5 (50% mastery)
-              - novice: 0.0 (0% mastery)
-    """
     return {
         "levels": {
             "master": 0.9,
@@ -50,19 +28,19 @@ def get_mastery_levels()->dict:
 
 
 @router.get("/disciplines")
-def get_disciplines():
+def get_disciplines(db: Session = Depends(get_db)):
     """
-    Retrieve available disciplines/subjects.
+    Retrieve unique disciplines from the AAV table.
+    """
+    # Query distinct disciplines from AAVModel
+    disciplines = db.query(AAVModel.discipline).distinct().all()
+    # Flatten the result list of tuples
+    discipline_list = [d[0] for d in disciplines if d[0]]
     
-    Returns:
-        dict: Dictionary containing list of available teaching disciplines.
-    """
+    # If no disciplines in DB, fallback to defaults
+    if not discipline_list:
+        discipline_list = ["Mathématiques", "Français", "Informatique"]
+        
     return {
-        "disciplines": [
-            "Mathématiques",
-            "Français",
-            "Histoire-Géographie",
-            "Sciences",
-            "Informatique"
-        ]
+        "disciplines": sorted(discipline_list)
     }

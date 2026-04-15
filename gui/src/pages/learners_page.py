@@ -1,63 +1,155 @@
-"""
-Gestion des Apprenants page – style moderne.
-CRUD apprenants, prérequis externes, statuts d'apprentissage, ontologie, progression.
-"""
-
 import sys
-from pathlib import Path
+import json
+import requests
 import flet as ft
+from pathlib import Path
 
+# Configuration du chemin racine pour les imports internes
 PROJECT_ROOT = Path(__file__).resolve().parents[3]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-from app.routers import learners
-from app.database import SessionLocal
-
-
 class LearnersPage:
-    def __init__(self, content_area):
+    """
+    Page de gestion des profils apprenants.
+    Permet le suivi individuel, l'analyse de progression et la simulation d'activites pedagogiques.
+    """
+
+    def __init__(self, content_area, is_professor=False):
+        """Initialise la page avec les composants de recherche et les permissions."""
         self.content_area = content_area
+        self.is_professor = is_professor
         self._page = None
-        self.affichage_resultat = None
         self.champ_id = None
+        self.result_container = None
         self.bouton_modifier = None
         self.bouton_supprimer = None
 
-    def _set_result(self, text: str, color: str = "#212121"):
-        self.affichage_resultat.value = text
-        self.affichage_resultat.color = color
-        self._page.update()
-
-    def _fmt(self, res: dict) -> str:
-        return "\n".join(f"{k:30}: {v}" for k, v in res.items())
-
-    def rechercher(self, e=None):
-        if not self.champ_id.value:
-            return
-        db = SessionLocal()
-        try:
-            res = learners.get_learner(int(self.champ_id.value), db)
-            self._set_result(self._fmt(res))
-            self.bouton_modifier.visible = True
-            self.bouton_supprimer.visible = True
-        except Exception as err:
-            self._set_result(f"Erreur : {err}", "#F44336")
-            self.bouton_modifier.visible = False
-            self.bouton_supprimer.visible = False
-        finally:
-            db.close()
+    def _set_result_content(self, control: ft.Control):
+        """Met a jour la zone de resultats centrale."""
+        self.result_container.content = control
+        if self._page:
             self._page.update()
 
-    def ouvrir_liste(self, e):
-        db = SessionLocal()
+    def _set_error(self, msg: str):
+        """Affiche un message d'erreur structure."""
+        self._set_result_content(
+            ft.Container(
+                content=ft.Row([
+                    ft.Icon(ft.Icons.ERROR_OUTLINE, color=ft.Colors.WHITE, size=28),
+                    ft.Text(msg, color=ft.Colors.WHITE, size=15, weight="w500", expand=True)
+                ]),
+                bgcolor="#EF5350", border_radius=12, padding=20
+            )
+        )
+
+    def _handle_response(self, response: requests.Response, success_msg: str = None) -> bool:
+        """Gere les retours de l'API et affiche les notifications de status."""
+        if response.status_code in [200, 201, 204]:
+            if success_msg:
+                self._set_result_content(
+                    ft.Container(
+                        content=ft.Row([
+                            ft.Icon(ft.Icons.CHECK_CIRCLE_OUTLINE, color=ft.Colors.WHITE, size=28),
+                            ft.Text(success_msg, color=ft.Colors.WHITE, size=15, weight="bold")
+                        ]),
+                        bgcolor="#66BB6A", border_radius=12, padding=20
+                    )
+                )
+            return True
+        
+        msg = f"Erreur {response.status_code}"
+        if response.status_code == 404:
+            msg = "Profil introuvable."
+        elif response.status_code == 400:
+            msg = "Donnees incorrectes."
+            
         try:
-            data = learners.list_learners(db=db)
-        except Exception as err:
-            self._set_result(f"Erreur liste : {err}", "#F44336")
-            db.close()
+            detail = response.json().get("detail")
+            if detail: msg += f" - {detail}"
+        except: pass
+
+        self._set_error(msg)
+        return False
+
+    def _format_value(self, v):
+        """Formate dynamiquement les types complexes pour un rendu visuel propre."""
+        if v is None:
+            return "---"
+        if isinstance(v, list):
+            if not v:
+                return "Aucune donnee."
+            return ", ".join(str(i) for i in v)
+        if isinstance(v, dict):
+            if not v:
+                return "Aucune information."
+            res = ""
+            for sub_k, sub_v in v.items():
+                res += f"* {str(sub_k).capitalize()}: {self._format_value(sub_v)}\n"
+            return res.strip()
+        return str(v)
+
+    def _dict_to_ui(self, data: dict, title="Fiche Apprenant"):
+        """Genere l'interface utilisateur pour afficher les details d'un apprenant."""
+        rows = []
+        for k, v in data.items():
+            k_clean = str(k).replace("_", " ").title()
+            val_str = self._format_value(v)
+            rows.append(
+                ft.Container(
+                    content=ft.Row([
+                        ft.Text(f"{k_clean}", weight="w600", color="#3949AB", size=14, width=170),
+                        ft.Text(val_str, color="#424242", size=14, expand=True, selectable=True)
+                    ], vertical_alignment=ft.CrossAxisAlignment.START),
+                    padding=ft.padding.symmetric(vertical=12, horizontal=8),
+                    border=ft.border.only(bottom=ft.border.BorderSide(1, "#EEEEEE"))
+                )
+            )
+
+        return ft.Container(
+            content=ft.Column([
+                ft.Row([
+                    ft.Icon(ft.Icons.ASSIGNMENT_IND, color="#1A237E", size=24),
+                    ft.Text(title, size=20, weight="bold", color="#1A237E"),
+                ]),
+                ft.Divider(color="#E8EAF6", height=20),
+                *rows
+            ], scroll=ft.ScrollMode.AUTO),
+            padding=24, bgcolor="#FFFFFF", border_radius=16
+        )
+
+    def rechercher(self, e=None):
+        """Effectue une requete pour recuperer les informations d'un apprenant par son ID."""
+        if not self.champ_id.value:
+            self._set_error("L'identifiant est requis.")
             return
-        db.close()
+        
+        self._set_result_content(ft.ProgressRing(color="#3949AB"))
+        try:
+            response = requests.get(f"http://127.0.0.1:8000/learners/{int(self.champ_id.value)}")
+            if self._handle_response(response):
+                data = response.json()
+                apprenant_name = data.get("nom_utilisateur", f"Apprenant #{self.champ_id.value}")
+                self._set_result_content(self._dict_to_ui(data, title=f"Fiche de {apprenant_name}"))
+                self.secure_set_visible(self.bouton_modifier, True)
+                self.secure_set_visible(self.bouton_supprimer, True)
+            else:
+                self.secure_set_visible(self.bouton_modifier, False)
+                self.secure_set_visible(self.bouton_supprimer, False)
+        except Exception as err:
+            self._set_error(f"Erreur technique : {err}")
+
+    def ouvrir_liste(self, e):
+        """Affiche la liste exhaustive des apprenants dans un dialogue modal."""
+        self._set_result_content(ft.ProgressRing(color="#3949AB"))
+        try:
+            response = requests.get("http://127.0.0.1:8000/learners/")
+            if not self._handle_response(response): return
+            data = response.json()
+        except:
+            self._set_error("Serveur inaccessible.")
+            return
+            
         items_raw = data if isinstance(data, list) else data.get("learners", [])
 
         def selectionner(id_v):
@@ -66,198 +158,232 @@ class LearnersPage:
             self._page.update()
             self.rechercher()
 
-        items = [
-            ft.ListTile(
-                leading=ft.Icon(ft.Icons.PERSON, color="#1565C0"),
-                title=ft.Text(f"Apprenant #{l.get('id_apprenant', l.get('id', '?'))}", weight="bold"),
-                subtitle=ft.Text(f"{l.get('nom', '')} {l.get('prenom', '')}"),
-                on_click=lambda e, id_v=l.get("id_apprenant", l.get("id")): selectionner(id_v),
-            )
-            for l in items_raw
-        ]
+        cards = []
+        for l in items_raw:
+            id_val = l.get('id_apprenant', l.get('id', '?'))
+            name = l.get('nom_utilisateur', f"Etudiant #{id_val}")
+            
+            cards.append(ft.Container(
+                content=ft.ListTile(
+                    leading=ft.CircleAvatar(content=ft.Icon(ft.Icons.PERSON), bgcolor="#E8EAF6", color="#3949AB"),
+                    title=ft.Text(name, weight="bold"),
+                    subtitle=ft.Text(f"ID : {id_val}"),
+                    on_click=lambda e, idx=id_val: selectionner(idx),
+                ),
+                border_radius=8, bgcolor="#FAFAFA"
+            ))
+
         dialog = ft.AlertDialog(
-            title=ft.Text("Liste des Apprenants"),
-            content=ft.Container(content=ft.ListView(items, spacing=8, padding=10), width=500, height=500),
-            actions=[ft.TextButton("Fermer", on_click=lambda _: setattr(dialog, "open", False) or self._page.update())],
+            title=ft.Text("Referentiel des Apprenants"),
+            content=ft.Container(content=ft.ListView(cards, padding=10), width=450, height=450),
+            actions=[ft.TextButton("Fermer", on_click=lambda _: setattr(dialog, "open", False) or self._page.update())]
         )
         self._page.overlay.append(dialog)
         dialog.open = True
         self._page.update()
 
     def ouvrir_creation(self, e):
-        champ_nom = ft.TextField(label="Nom", width=300)
-        champ_prenom = ft.TextField(label="Prénom", width=300)
-        champ_email = ft.TextField(label="Email", width=300)
+        """Ouvre le formulaire de creation pour un nouveau profil etudiant."""
+        champ_nom = ft.TextField(label="Nom Complet", width=350)
+        champ_email = ft.TextField(label="Adresse Email", width=350)
 
         def valider(ev):
-            db = SessionLocal()
             try:
-                res = learners.create_learner({"nom": champ_nom.value, "prenom": champ_prenom.value, "email": champ_email.value}, db)
-                dialog.open = False
-                id_key = "id_apprenant" if "id_apprenant" in res else "id"
-                self.champ_id.value = str(res.get(id_key, ""))
-                self._page.update()
-                self.rechercher()
+                response = requests.post("http://127.0.0.1:8000/learners/", json={"nom_utilisateur": champ_nom.value, "email": champ_email.value})
+                if self._handle_response(response, "Profil cree avec succes."):
+                    res = response.json()
+                    dialog.open = False
+                    self.champ_id.value = str(res.get("id_apprenant", res.get("id", "")))
+                    self._page.update()
+                    self.rechercher()
             except Exception as err:
-                self._set_result(f"Erreur création : {err}", "#F44336")
-            finally:
-                db.close()
+                self._set_error(f"Erreur technique : {err}")
 
         dialog = ft.AlertDialog(
-            title=ft.Text("Créer un Apprenant"),
-            content=ft.Column([champ_nom, champ_prenom, champ_email], tight=True),
+            title=ft.Text("Nouveau Profil"),
+            content=ft.Column([champ_nom, champ_email], tight=True, spacing=15),
             actions=[
                 ft.TextButton("Annuler", on_click=lambda _: setattr(dialog, "open", False) or self._page.update()),
-                ft.ElevatedButton("Créer", on_click=valider, bgcolor=ft.Colors.GREEN_400, color=ft.Colors.WHITE),
-            ],
+                ft.ElevatedButton("Enregistrer", on_click=valider, bgcolor="#4CAF50", color="white"),
+            ]
         )
         self._page.overlay.append(dialog)
         dialog.open = True
         self._page.update()
 
     def ouvrir_modifier(self, e):
-        if not self.champ_id.value:
-            return
-        champ_nom = ft.TextField(label="Nom", width=300)
-        champ_prenom = ft.TextField(label="Prénom", width=300)
-        champ_email = ft.TextField(label="Email", width=300)
+        """Permet la mise a jour des informations d'un apprenant existant."""
+        if not self.champ_id.value: return
+        champ_nom = ft.TextField(label="Nom de l'utilisateur", width=350)
+        champ_email = ft.TextField(label="Contact Email", width=350)
 
         def sauvegarder(ev):
-            db = SessionLocal()
             try:
-                learners.update_learner_full(int(self.champ_id.value), {"nom": champ_nom.value, "prenom": champ_prenom.value, "email": champ_email.value}, db)
-                self._set_result("✅ Apprenant modifié avec succès", "#4CAF50")
+                payload = {}
+                if champ_nom.value: payload["nom_utilisateur"] = champ_nom.value
+                if champ_email.value: payload["email"] = champ_email.value
+                
+                response = requests.put(f"http://127.0.0.1:8000/learners/{int(self.champ_id.value)}", json=payload)
+                if self._handle_response(response, "Profil actualise."):
+                    self.rechercher()
             except Exception as err:
-                self._set_result(f"❌ Erreur : {err}", "#F44336")
+                self._set_error(f"Erreur : {err}")
             finally:
-                db.close()
                 dialog.open = False
                 self._page.update()
 
         dialog = ft.AlertDialog(
-            title=ft.Text(f"Modifier Apprenant n°{self.champ_id.value}", weight="bold"),
-            content=ft.Column([champ_nom, champ_prenom, champ_email], scroll=ft.ScrollMode.AUTO),
+            title=ft.Text("Modification de compte"),
+            content=ft.Column([champ_nom, champ_email], tight=True, spacing=15),
             actions=[
                 ft.TextButton("Annuler", on_click=lambda _: setattr(dialog, "open", False) or self._page.update()),
-                ft.ElevatedButton("Sauvegarder", on_click=sauvegarder, color="#FFFFFF", bgcolor="#4CAF50"),
-            ],
+                ft.ElevatedButton("Appliquer", on_click=sauvegarder, color="white", bgcolor="#FF9800"),
+            ]
         )
         self._page.overlay.append(dialog)
         dialog.open = True
         self._page.update()
 
     def action_supprimer(self, e):
-        if not self.champ_id.value:
-            return
-
+        """Demande confirmation puis supprime le profil de la base de donnees."""
+        if not self.champ_id.value: return
         def confirmer(ev):
-            db = SessionLocal()
             try:
-                learners.delete_learner(int(self.champ_id.value), db)
-                self._set_result("✅ Apprenant supprimé", "#4CAF50")
-                self.bouton_modifier.visible = False
-                self.bouton_supprimer.visible = False
-            except Exception as err:
-                self._set_result(f"❌ Erreur : {err}", "#F44336")
+                response = requests.delete(f"http://127.0.0.1:8000/learners/{int(self.champ_id.value)}")
+                if self._handle_response(response, "Compte supprime."):
+                    self.secure_set_visible(self.bouton_modifier, False)
+                    self.secure_set_visible(self.bouton_supprimer, False)
+                    self.champ_id.value = ""
+            except:
+                self._set_error("Echec de la suppression.")
             finally:
-                db.close()
                 dialog.open = False
                 self._page.update()
 
         dialog = ft.AlertDialog(
-            title=ft.Text("Confirmer la suppression", weight="bold"),
-            content=ft.Text(f"Supprimer Apprenant #{self.champ_id.value} ?"),
+            title=ft.Text("Suppression Definitive"),
+            content=ft.Text("Voulez-vous supprimer ce profil ? Cette action est irreversible."),
             actions=[
-                ft.TextButton("Annuler", on_click=lambda _: setattr(dialog, "open", False) or self._page.update()),
-                ft.ElevatedButton("Supprimer", on_click=confirmer, color="#FFFFFF", bgcolor="#F44336"),
-            ],
+                ft.TextButton("Abandonner", on_click=lambda _: setattr(dialog, "open", False) or self._page.update()),
+                ft.ElevatedButton("Supprimer", on_click=confirmer, color="white", bgcolor="#F44336"),
+            ]
         )
         self._page.overlay.append(dialog)
         dialog.open = True
         self._page.update()
 
     def voir_progression(self, e):
-        if not self.champ_id.value:
+        """Affiche l'etat actuel de maitrise des AAV pour l'apprenant selectionne."""
+        if not self.champ_id.value: 
+            self._set_error("ID requis.")
             return
-        db = SessionLocal()
+        self._set_result_content(ft.ProgressRing(color="#3949AB"))
         try:
-            res = learners.get_progress(int(self.champ_id.value), db)
-            import json
-            self._set_result(json.dumps(res, indent=2, ensure_ascii=False))
+            response = requests.get(f"http://127.0.0.1:8000/learners/{int(self.champ_id.value)}/progress")
+            if self._handle_response(response):
+                self._set_result_content(self._dict_to_ui(response.json(), title="Maitrise des AAV"))
         except Exception as err:
-            self._set_result(f"Erreur : {err}", "#F44336")
-        finally:
-            db.close()
+            self._set_error(f"Erreur technique : {err}")
 
     def voir_statuts(self, e):
-        if not self.champ_id.value:
-            return
-        db = SessionLocal()
+        """Recupere les statuts d'apprentissage detailles via l'API."""
+        if not self.champ_id.value: return
+        self._set_result_content(ft.ProgressRing(color="#3949AB"))
         try:
-            res = learners.get_learning_status(int(self.champ_id.value), db)
-            import json
-            self._set_result(json.dumps(res, indent=2, ensure_ascii=False))
-        except Exception as err:
-            self._set_result(f"Erreur : {err}", "#F44336")
-        finally:
-            db.close()
+            response = requests.get(f"http://127.0.0.1:8000/learners/{int(self.champ_id.value)}/learning-status")
+            if self._handle_response(response):
+                self._set_result_content(self._dict_to_ui(response.json(), title="Statuts d'Apprentissage"))
+        except:
+            self._set_error("Impossible de recuperer les statuts.")
+
+    def ouvrir_simulation_tentative(self, e):
+        """Lance une interface de simulation pour generer des tentatives fictives."""
+        if not self.champ_id.value: return
+        champ_aav = ft.TextField(label="Cible AAV (ID)", keyboard_type=ft.KeyboardType.NUMBER)
+        champ_score = ft.Slider(min=0, max=100, divisions=10, label="{value}%", value=80)
+        
+        def valider(ev):
+            try:
+                payload = {
+                    "id_apprenant": int(self.champ_id.value),
+                    "id_aav_cible": int(champ_aav.value),
+                    "score_obtenu": champ_score.value / 100.0,
+                    "id_exercice_ou_evenement": 1,
+                    "est_valide": True,
+                    "temps_resolution_secondes": 45
+                }
+                response = requests.post("http://127.0.0.1:8000/attempts/", json=payload)
+                if self._handle_response(response, "Tentative enregistree."):
+                    dialog.open = False
+                    self.voir_progression(None)
+            except Exception as ex:
+                self._set_error(f"Echec de la simulation : {ex}")
+
+        dialog = ft.AlertDialog(
+            title=ft.Text("Simulation Pedagogique"),
+            content=ft.Column([champ_aav, ft.Text("Niveau de performance :"), champ_score], tight=True),
+            actions=[
+                ft.TextButton("Annuler", on_click=lambda _: setattr(dialog, "open", False) or self._page.update()),
+                ft.ElevatedButton("Simuler", on_click=valider, bgcolor="#FF6F00", color="white")
+            ]
+        )
+        self._page.overlay.append(dialog)
+        dialog.open = True
+        self._page.update()
 
     def build(self, page: ft.Page):
+        """Cree la structure visuelle de la page de gestion des apprenants."""
         self._page = page
-        COLOR_PRIMARY = "#1A237E"
-        COLOR_BG_INPUT = "#E8EAF6"
-        COLOR_BORDER = "#3F51B5"
-
         self.champ_id = ft.TextField(
-            label="Numéro Apprenant",
-            width=200,
-            keyboard_type=ft.KeyboardType.NUMBER,
-            border_radius=10,
-            border_color=COLOR_BORDER,
-            bgcolor=COLOR_BG_INPUT,
-            prefix_icon=ft.Icons.PERSON_SEARCH,
-            cursor_color=COLOR_PRIMARY,
+            label="Identifiant Apprenant", width=220, border_radius=12,
+            bgcolor="#FFFFFF", prefix_icon=ft.Icons.PERSON_PIN
         )
-        self.affichage_resultat = ft.Text("Résultat : aucun", size=14, color="#212121")
-        self.bouton_modifier = ft.ElevatedButton("Modifier", visible=False, on_click=self.ouvrir_modifier, color="#FFFFFF", bgcolor="#3F51B5")
-        self.bouton_supprimer = ft.ElevatedButton("Supprimer", visible=False, on_click=self.action_supprimer, color="#FFFFFF", bgcolor="#F44336")
+        
+        self.result_container = ft.Container(
+            content=ft.Column([
+                ft.Icon(ft.Icons.INFO_OUTLINE, size=60, color="#B0BEC5"),
+                ft.Text("Entrez un identifiant ou parcourez la liste.", color="#90A4AE")
+            ], alignment=ft.MainAxisAlignment.CENTER),
+            width=800, height=450, bgcolor="#FAFAFC", border_radius=16, 
+            padding=20, border=ft.border.all(1, "#E8EAF6")
+        )
+        
+        self.bouton_modifier = ft.ElevatedButton("Modifier Profil", icon=ft.Icons.EDIT, visible=False, on_click=self.ouvrir_modifier, bgcolor="#FFB300", color="white")
+        self.bouton_supprimer = ft.ElevatedButton("Supprimer Profil", icon=ft.Icons.DELETE, visible=False, on_click=self.action_supprimer, bgcolor="#E53935", color="white")
 
-        boite_resultat = ft.Container(
-            content=ft.Column([self.affichage_resultat], scroll=ft.ScrollMode.ALWAYS),
-            width=600, height=380,
-            bgcolor="#FFFFFF",
-            border_radius=10,
-            padding=16,
-            border=ft.border.all(1, "#C5CAE9"),
-            shadow=ft.BoxShadow(blur_radius=8, color=ft.Colors.with_opacity(0.08, ft.Colors.BLACK)),
+        def secure_set_visible(btn, val):
+            btn.visible = val if self.is_professor else False
+        self.secure_set_visible = secure_set_visible
+
+        def _action_btn(icon, text, click_handler, color, bg):
+            return ft.ElevatedButton(text, icon=icon, on_click=click_handler, color=color, bgcolor=bg, style=ft.ButtonStyle(shape=ft.RoundedRectangleBorder(radius=12)))
+
+        header = ft.Container(
+            content=ft.Row([
+                ft.Icon(ft.Icons.PEOPLE_ALT, size=40, color="#283593"),
+                ft.Text("Referentiel Apprenants", size=28, weight="bold", color="#283593"),
+            ]), margin=ft.margin.only(bottom=20)
         )
+
+        controls = ft.Row([
+            self.champ_id,
+            _action_btn(ft.Icons.SEARCH, "Chercher", self.rechercher, "white", "#283593"),
+            _action_btn(ft.Icons.LIST, "Liste", self.ouvrir_liste, "white", "#3F51B5"),
+            _action_btn(ft.Icons.PERSON_ADD, "Nouveau", self.ouvrir_creation, "white", "#43A047") if self.is_professor else ft.Container(),
+        ], wrap=True)
+        
+        analytics = ft.Row([
+            _action_btn(ft.Icons.AUTO_GRAPH, "Maitrise Generale", self.voir_progression, "white", "#00ACC1"),
+            _action_btn(ft.Icons.SCIENCE, "Simuler Travail", self.ouvrir_simulation_tentative, "white", "#FF6F00") if self.is_professor else ft.Container(),
+            _action_btn(ft.Icons.FACT_CHECK, "Statuts Detaillees", self.voir_statuts, "white", "#8E24AA"),
+        ], spacing=15)
 
         return ft.Container(
-            content=ft.Column(
-                [
-                    ft.Text("Gestion des Apprenants", size=28, weight="bold", color=COLOR_PRIMARY),
-                    ft.Divider(height=20, color="transparent"),
-                    self.champ_id,
-                    ft.Divider(height=10, color="transparent"),
-                    ft.Row([
-                        ft.ElevatedButton("Rechercher", icon=ft.Icons.SEARCH, on_click=self.rechercher, bgcolor=COLOR_PRIMARY, color=ft.Colors.WHITE),
-                        ft.ElevatedButton("Liste Apprenants", icon=ft.Icons.GROUP, on_click=self.ouvrir_liste, bgcolor="#3F51B5", color=ft.Colors.WHITE),
-                        ft.ElevatedButton("Nouvel Apprenant", icon=ft.Icons.PERSON_ADD, on_click=self.ouvrir_creation, bgcolor=ft.Colors.GREEN_600, color=ft.Colors.WHITE),
-                    ], alignment=ft.MainAxisAlignment.CENTER, wrap=True),
-                    ft.Row([
-                        ft.ElevatedButton("Voir Progression", icon=ft.Icons.TRENDING_UP, on_click=self.voir_progression, bgcolor=ft.Colors.AMBER_700, color=ft.Colors.WHITE),
-                        ft.ElevatedButton("Statuts d'apprentissage", icon=ft.Icons.BOOKMARK, on_click=self.voir_statuts, bgcolor="#0288D1", color=ft.Colors.WHITE),
-                    ], alignment=ft.MainAxisAlignment.CENTER, wrap=True),
-                    ft.Divider(height=15, color="transparent"),
-                    boite_resultat,
-                    ft.Divider(height=15, color="transparent"),
-                    ft.Row([self.bouton_modifier, self.bouton_supprimer], alignment=ft.MainAxisAlignment.CENTER, spacing=20),
-                ],
-                horizontal_alignment=ft.CrossAxisAlignment.CENTER,
-                spacing=8,
-                scroll=ft.ScrollMode.AUTO,
-            ),
-            bgcolor="#FFFFFF",
-            expand=True,
-            padding=20,
+            content=ft.Column([
+                header,
+                ft.Container(content=ft.Column([controls, analytics], spacing=20), bgcolor="#FFFFFF", padding=24, border_radius=16),
+                self.result_container,
+                ft.Row([self.bouton_modifier, self.bouton_supprimer], alignment=ft.MainAxisAlignment.END, spacing=15)
+            ], scroll=ft.ScrollMode.AUTO),
+            padding=40, expand=True, bgcolor="#F5F7FA"
         )

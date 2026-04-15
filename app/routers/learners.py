@@ -12,11 +12,10 @@ from app.database import (
     ApprenantModel, ExternalPrerequisiteValidationModel, StatutApprentissageModel,
     OntologyReferenceModel, AAVModel
 )
-from sqlalchemy import and_
+from sqlalchemy import and_, func
 
 
 router = APIRouter(
-    prefix="/learners",
     tags=["Learners"],
     responses={
         404: {"description": "Apprenant non trouvé"},
@@ -52,14 +51,13 @@ class LearnerRepository(BaseRepository):
     def create(self, data: dict) -> int:
         """
         Crée un nouvel apprenant dans la base de données.
-
-        Args:
-            data (dict): Dictionnaire contenant les informations de l'apprenant.
-
-        Returns:
-            int: L'identifiant de l'apprenant créé.
         """
         with get_db_connection() as session:
+            # Generate ID if not provided
+            if data.get('id_apprenant') is None:
+                max_id = session.query(func.max(ApprenantModel.id_apprenant)).scalar() or 0
+                data['id_apprenant'] = max_id + 1
+
             new_learner = ApprenantModel(
                 id_apprenant=data['id_apprenant'],
                 nom_utilisateur=data['nom_utilisateur'],
@@ -173,15 +171,16 @@ def create_learner(learner: LearnerCreate):
     Raises:
         HTTPException: 400 si l'ID existe déjà, 500 en cas d'erreur serveur.
     """
-    exists = repo.get_by_id(learner.id_apprenant)
-    if exists:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Il existe déjà un apprenant avec l'ID {learner.id_apprenant}")
+    if learner.id_apprenant is not None:
+        exists = repo.get_by_id(learner.id_apprenant)
+        if exists:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Il existe déjà un apprenant avec l'ID {learner.id_apprenant}")
 
     try:
-        repo.create(learner.model_dump())
-        created = repo.get_by_id(learner.id_apprenant)
+        new_id = repo.create(learner.model_dump())
+        created = repo.get_by_id(new_id)
         return Learner(**created)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -565,11 +564,14 @@ def get_progress(id_apprenant: int):
     if not apprenant_dict:
         raise HTTPException(status_code=404, detail="Apprenant non trouvé")
 
-    # Vérifier qu'il a une ontologie assignée
+    # Vérifier qu'il a une ontologie assignée. Si non, on renvoie une progression de 0.
     if not apprenant_dict.get('ontologie_reference_id'):
-        raise HTTPException(
-            status_code=404,
-            detail="Cet apprenant n'a pas d'ontologie de référence assignée"
+        return ProgressResponse(
+            id_apprenant=id_apprenant,
+            ontologie_reference_id=0,
+            total_aavs=0,
+            aavs_maitrise=0,
+            taux_progression=0.0
         )
 
     with get_db_connection() as session:
@@ -596,11 +598,11 @@ def get_progress(id_apprenant: int):
                 taux_progression=0.0
             )
 
-        # Compter combien de ces AAVs sont maîtrisés par l'apprenant
+        # Compter combien de ces AAVs sont maîtrisés par l'apprenant (niveau >= 0.9)
         nb_maitrise = session.query(func.count(StatutApprentissageModel.id)).filter(
             StatutApprentissageModel.id_apprenant == id_apprenant,
             StatutApprentissageModel.id_aav_cible.in_(aavs_ids),
-            StatutApprentissageModel.est_maitrise == True
+            StatutApprentissageModel.niveau_maitrise >= 0.9
         ).scalar() or 0
 
         taux = round(nb_maitrise / total_aavs * 100, 2)

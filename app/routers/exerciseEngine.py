@@ -334,14 +334,14 @@ def update_progression_rules(id_aav: int, regles: RegleProgression):
 @router.get("/next-exercise/{id_aav}")
 def get_next_exercise(
     id_aav: int,
-    id_apprenant: int = Depends(_get_apprenant)
+    id_apprenant: int = 0,
 ):
     """
     Sélectionne intelligemment le prochain exercice pour un apprenant.
 
     Args:
         id_aav (int): L'identifiant de l'AAV cible.
-        id_apprenant (int): L'identifiant de l'apprenant (injecté).
+        id_apprenant (int, query): L'identifiant de l'apprenant (optionnel, 0 = anonyme).
 
     Returns:
         dict: Le prochain exercice sélectionné avec ses métadonnées.
@@ -352,15 +352,16 @@ def get_next_exercise(
     maitrise = calculer_maitrise_reelle(id_apprenant, id_aav)
     difficulte_cible = determiner_difficulte_cible(maitrise)
 
+    exercice_data = None
     with get_db_connection() as session:
-        # Check subquery for already succeeded exercises
+        # Sous-requête : exercices déjà réussis par l'apprenant
         subquery = session.query(TentativeExerciceModel.id_exercice).filter(
             and_(
                 TentativeExerciceModel.id_apprenant == id_apprenant,
                 TentativeExerciceModel.score_obtenu >= 0.7
             )
         )
-        
+
         exercice = session.query(ExerciceInstanceModel).filter(
             and_(
                 ExerciceInstanceModel.id_aav_cible == id_aav,
@@ -377,7 +378,17 @@ def get_next_exercise(
                 )
             ).order_by(ExerciceInstanceModel.taux_succes_moyen.desc()).first()
 
-    if not exercice:
+        # Extraire les données DANS la session pour éviter le "not bound to a Session"
+        if exercice:
+            exercice_data = {
+                "id_exercice": exercice.id_exercice,
+                "titre": exercice.titre,
+                "contenu": from_json(exercice.contenu) if isinstance(exercice.contenu, str) else exercice.contenu,
+                "difficulte": exercice.difficulte,
+                "type_evaluation": exercice.type_evaluation,
+            }
+
+    if not exercice_data:
         raise HTTPException(
             status_code=404,
             detail=(
@@ -390,15 +401,9 @@ def get_next_exercise(
         "metadata": {
             "apprenant_id": id_apprenant,
             "maitrise_calculee": maitrise,
-            "difficulte_cible": difficulte_cible
+            "difficulte_cible": difficulte_cible,
         },
-        "exercice": {
-            "id_exercice": exercice.id_exercice,
-            "titre": exercice.titre,
-            "contenu": from_json(exercice.contenu) if isinstance(exercice.contenu, str) else exercice.contenu,
-            "difficulte": exercice.difficulte,
-            "type_evaluation": exercice.type_evaluation
-        }
+        "exercice": exercice_data,
     }
 
 
@@ -709,6 +714,10 @@ def preview_prompt(id_prompt: int, body: PreviewPromptRequest):
                 ]
 
                 aav_obj = session.query(AAVModel).filter(AAVModel.id_aav == id_aav).first()
+                # Extraire les valeurs DANS la session pour éviter le "not bound to a Session"
+                aav_nom = aav_obj.nom if aav_obj else "inconnu"
+                aav_desc = aav_obj.description_markdown if aav_obj else ""
+                aav_type = aav_obj.type_evaluation if aav_obj else ""
 
             maitrise_actuelle = calculer_maitrise_reelle(
                 body.id_apprenant, id_aav
@@ -717,20 +726,14 @@ def preview_prompt(id_prompt: int, body: PreviewPromptRequest):
 
             prompt_enrichi = (
                 f"=== CONTEXTE APPRENANT (id: {body.id_apprenant}) ===\n"
-                f"- Niveau de maîtrise sur cet AAV :"
-                f" {maitrise_actuelle * 100:.0f}%\n"
+                f"- Niveau de maîtrise sur cet AAV : {maitrise_actuelle * 100:.0f}%\n"
                 f"- Difficulté recommandée         : {difficulte}\n"
-                f"- AAV déjà maîtrisés             :"
-                f" {aavs_maitrises if aavs_maitrises else 'aucun'}\n"
-                f"- AAV en cours d'apprentissage   :"
-                f" {aavs_en_cours if aavs_en_cours else 'aucun'}\n\n"
+                f"- AAV déjà maîtrisés             : {aavs_maitrises if aavs_maitrises else 'aucun'}\n"
+                f"- AAV en cours d'apprentissage   : {aavs_en_cours if aavs_en_cours else 'aucun'}\n\n"
                 f"=== AAV CIBLE (id: {id_aav}) ===\n"
-                f"- Nom          :"
-                f" {aav_obj.nom if aav_obj else 'inconnu'}\n"
-                f"- Description  :"
-                f" {aav_obj.description_markdown if aav_obj else ''}\n"
-                f"- Type éval.   :"
-                f" {aav_obj.type_evaluation if aav_obj else ''}\n\n"
+                f"- Nom          : {aav_nom}\n"
+                f"- Description  : {aav_desc}\n"
+                f"- Type éval.   : {aav_type}\n\n"
                 f"=== PROMPT DE GÉNÉRATION ===\n"
                 f"{prompt_texte}"
             )

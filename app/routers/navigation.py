@@ -12,8 +12,7 @@ from sqlalchemy import and_
 
 
 router = APIRouter(
-    prefix="/navigation",
-    tags=["Navigation"]
+    tags=["Navigation"],
 )
 
 # ============================================================

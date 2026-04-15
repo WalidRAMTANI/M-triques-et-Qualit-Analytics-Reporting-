@@ -1,216 +1,129 @@
-"""
-Fabrication de Prompts AAV page – style moderne.
-CRUD sur les prompts pédagogiques.
-"""
-
 import sys
-from pathlib import Path
 import flet as ft
-import httpx, json
+import httpx
+from pathlib import Path
 
+# Configuration du chemin racine pour les imports internes
 PROJECT_ROOT = Path(__file__).resolve().parents[3]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-BASE_URL = "http://localhost:8000"
-
+# Parametres de l'API
+BASE_URL = "http://127.0.0.1:8000"
 
 class PromptfabricationaavPage:
+    """
+    Page de gestion et de consultation des prompts de fabrication AAV.
+    Assure l'interface entre le referentiel d'instructions et les mecanismes de generation.
+    """
+
     def __init__(self, content_area):
+        """Initialise la page avec les composants de recherche et le conteneur de resultats."""
         self.content_area = content_area
         self._page = None
-        self.affichage_resultat = None
-        self.champ_id = None
-        self.bouton_modifier = None
-        self.bouton_supprimer = None
+        self.champ_id = ft.TextField(
+            label="Identifiant du Prompt", width=200, border_color="#880E4F",
+            keyboard_type=ft.KeyboardType.NUMBER
+        )
+        self.result_container = ft.Container(
+            expand=True, padding=20, border_radius=12,
+            border=ft.border.all(1, "#FCE4EC"), bgcolor="white"
+        )
 
-    def _set_result(self, text: str, color: str = "#212121"):
-        self.affichage_resultat.value = text
-        self.affichage_resultat.color = color
-        self._page.update()
+    def _set_result(self, control: ft.Control):
+        """Met a jour la zone d'affichage avec un nouveau composant graphique."""
+        self.result_container.content = control
+        if self._page: self._page.update()
 
-    def _get(self, path):
-        r = httpx.get(BASE_URL + path, timeout=5)
-        return json.dumps(r.json(), indent=2, ensure_ascii=False)
+    def _show_msg(self, msg: str, is_error=False):
+        """Affiche une notification coloree en cas de succes ou d'erreur."""
+        cor, ico = ("#EF5350", ft.Icons.ERROR_OUTLINE) if is_error else ("#66BB6A", ft.Icons.CHECK_CIRCLE_OUTLINE)
+        self._set_result(
+            ft.Container(
+                content=ft.Row([ft.Icon(ico, color="white"), ft.Text(msg, color="white", expand=True)]),
+                bgcolor=cor, padding=12, border_radius=10
+            )
+        )
 
-    def rechercher(self, e=None):
-        if not self.champ_id.value:
-            return
-        try:
-            self._set_result(self._get(f"/prompts/{self.champ_id.value}"))
-            self.bouton_modifier.visible = True
-            self.bouton_supprimer.visible = True
-        except Exception as err:
-            self._set_result(f"Erreur : {err}", "#F44336")
-            self.bouton_modifier.visible = False
-            self.bouton_supprimer.visible = False
-        self._page.update()
-
-    def voir_liste(self, e):
-        try:
-            data = json.loads(self._get("/prompts/"))
-            items_raw = data if isinstance(data, list) else data.get("items", [])
-
-            def selectionner(id_v):
-                self.champ_id.value = str(id_v)
-                dialog.open = False
-                self._page.update()
-                self.rechercher()
+    def _display_data(self, data, title):
+        """Genere dynamiquement la vue pour une liste ou un dictionnaire de prompts."""
+        if isinstance(data, list):
+            def select_item(id_val):
+                self.champ_id.value = str(id_val)
+                self.search(None)
 
             items = [
                 ft.ListTile(
                     leading=ft.Icon(ft.Icons.TEXT_SNIPPET, color="#880E4F"),
-                    title=ft.Text(f"Prompt #{p.get('id_prompt', p.get('id', '?'))}", weight="bold"),
-                    subtitle=ft.Text(str(p.get("contenu", p.get("texte", "")))[:80]),
-                    on_click=lambda e, id_v=p.get("id_prompt", p.get("id")): selectionner(id_v),
+                    title=ft.Text(f"Instruction #{d.get('id_prompt', '?')}", weight="bold"),
+                    subtitle=ft.Text(f"{str(d.get('prompt_texte', ''))[:80]}...", max_lines=1),
+                    on_click=lambda e, idx=d.get('id_prompt'): select_item(idx),
+                    hover_color="#FCE4EC"
                 )
-                for p in items_raw
+                for d in data
             ]
-            dialog = ft.AlertDialog(
-                title=ft.Text("Liste des Prompts"),
-                content=ft.Container(content=ft.ListView(items, spacing=8, padding=10), width=500, height=500),
-                actions=[ft.TextButton("Fermer", on_click=lambda _: setattr(dialog, "open", False) or self._page.update())],
-            )
-            self._page.overlay.append(dialog)
-            dialog.open = True
-            self._page.update()
+            return ft.Column([
+                ft.Row([ft.Icon(ft.Icons.LIST_ALT, color="#880E4F"), ft.Text(title, weight="bold", size=20)]),
+                ft.Divider(color="#FCE4EC"),
+                ft.ListView(items, expand=True)
+            ], expand=True)
+        
+        # Affichage detaille pour un dictionnaire unique
+        rows = [
+            ft.DataRow(cells=[
+                ft.DataCell(ft.Text(str(k).replace("_", " ").title(), weight="bold", width=150)),
+                ft.DataCell(ft.Text(str(v)))
+            ])
+            for k, v in data.items()
+        ]
+        return ft.Column([
+            ft.Row([ft.Icon(ft.Icons.DESCRIPTION, color="#880E4F"), ft.Text(title, weight="bold", size=20, color="#880E4F")]),
+            ft.Divider(color="#FCE4EC"),
+            ft.DataTable(columns=[ft.DataColumn(ft.Text("Parametre/Champ")), ft.DataColumn(ft.Text("Contenu"))], rows=rows)
+        ], scroll=ft.ScrollMode.AUTO)
+
+    def search(self, e):
+        """Effectue une recherche ciblee via l'identifiant numerique du prompt."""
+        if not self.champ_id.value:
+            self._show_msg("Veuillez saisir un identifiant valide.", True); return
+        self._set_result(ft.ProgressRing(color="#880E4F"))
+        try:
+            r = httpx.get(f"{BASE_URL}/promptFabricationAAV/{self.champ_id.value}", timeout=10)
+            if r.status_code == 200:
+                self._set_result(self._display_data(r.json(), f"Details du Referentiel #{self.champ_id.value}"))
+            else:
+                self._show_msg(f"L'instruction #{self.champ_id.value} est introuvable.", True)
         except Exception as err:
-            self._set_result(f"Erreur liste : {err}", "#F44336")
+            self._show_msg(f"Erreur reseau : {err}", True)
 
-    def ouvrir_creation(self, e):
-        champ_aav = ft.TextField(label="ID AAV", keyboard_type=ft.KeyboardType.NUMBER, width=200)
-        champ_contenu = ft.TextField(label="Contenu du prompt", width=420, min_lines=4, max_lines=8)
-
-        def valider(ev):
-            try:
-                body = {"id_aav": int(champ_aav.value) if champ_aav.value else None, "contenu": champ_contenu.value}
-                r = httpx.post(BASE_URL + "/prompts/", json=body, timeout=5)
-                self._set_result(json.dumps(r.json(), indent=2, ensure_ascii=False))
-            except Exception as err:
-                self._set_result(f"Erreur création : {err}", "#F44336")
-            finally:
-                dialog.open = False
-                self._page.update()
-
-        dialog = ft.AlertDialog(
-            title=ft.Text("Créer un Prompt"),
-            content=ft.Column([champ_aav, champ_contenu], tight=True),
-            actions=[
-                ft.TextButton("Annuler", on_click=lambda _: setattr(dialog, "open", False) or self._page.update()),
-                ft.ElevatedButton("Créer", on_click=valider, bgcolor=ft.Colors.GREEN_400, color=ft.Colors.WHITE),
-            ],
-        )
-        self._page.overlay.append(dialog)
-        dialog.open = True
-        self._page.update()
-
-    def ouvrir_modifier(self, e):
-        if not self.champ_id.value:
-            return
-        champ_contenu = ft.TextField(label="Nouveau contenu", width=420, min_lines=4, max_lines=8)
-
-        def sauvegarder(ev):
-            try:
-                r = httpx.patch(BASE_URL + f"/prompts/{self.champ_id.value}", json={"contenu": champ_contenu.value}, timeout=5)
-                self._set_result(json.dumps(r.json(), indent=2, ensure_ascii=False))
-            except Exception as err:
-                self._set_result(f"❌ Erreur : {err}", "#F44336")
-            finally:
-                dialog.open = False
-                self._page.update()
-
-        dialog = ft.AlertDialog(
-            title=ft.Text(f"Modifier Prompt #{self.champ_id.value}", weight="bold"),
-            content=champ_contenu,
-            actions=[
-                ft.TextButton("Annuler", on_click=lambda _: setattr(dialog, "open", False) or self._page.update()),
-                ft.ElevatedButton("Sauvegarder", on_click=sauvegarder, color="#FFFFFF", bgcolor="#4CAF50"),
-            ],
-        )
-        self._page.overlay.append(dialog)
-        dialog.open = True
-        self._page.update()
-
-    def action_supprimer(self, e):
-        if not self.champ_id.value:
-            return
-
-        def confirmer(ev):
-            try:
-                httpx.delete(BASE_URL + f"/prompts/{self.champ_id.value}", timeout=5)
-                self._set_result("✅ Prompt supprimé", "#4CAF50")
-                self.bouton_modifier.visible = False
-                self.bouton_supprimer.visible = False
-            except Exception as err:
-                self._set_result(f"❌ Erreur : {err}", "#F44336")
-            finally:
-                dialog.open = False
-                self._page.update()
-
-        dialog = ft.AlertDialog(
-            title=ft.Text("Confirmer la suppression", weight="bold"),
-            content=ft.Text(f"Supprimer Prompt #{self.champ_id.value} ?"),
-            actions=[
-                ft.TextButton("Annuler", on_click=lambda _: setattr(dialog, "open", False) or self._page.update()),
-                ft.ElevatedButton("Supprimer", on_click=confirmer, color="#FFFFFF", bgcolor="#F44336"),
-            ],
-        )
-        self._page.overlay.append(dialog)
-        dialog.open = True
-        self._page.update()
+    def list_all(self, e):
+        """Recupere et affiche l'integralite de la bibliotheque des prompts."""
+        self._set_result(ft.ProgressRing(color="#880E4F"))
+        try:
+            r = httpx.get(f"{BASE_URL}/promptFabricationAAV/", timeout=10)
+            if r.status_code == 200:
+                self._set_result(self._display_data(r.json(), "Bibliotheque des Instructions"))
+            else:
+                self._show_msg("La recuperation bibliographique a echoue.", True)
+        except:
+            self._show_msg("Serveur de donnees inaccessible.", True)
 
     def build(self, page: ft.Page):
+        """Assemble l'interface graphique de gestion des prompts."""
         self._page = page
-        COLOR_PRIMARY = "#880E4F"
-        COLOR_BG_INPUT = "#FCE4EC"
-        COLOR_BORDER = "#E91E63"
-
-        self.champ_id = ft.TextField(
-            label="Numéro Prompt",
-            width=200,
-            keyboard_type=ft.KeyboardType.NUMBER,
-            border_radius=10,
-            border_color=COLOR_BORDER,
-            bgcolor=COLOR_BG_INPUT,
-            prefix_icon=ft.Icons.SEARCH,
-            cursor_color=COLOR_PRIMARY,
-        )
-        self.affichage_resultat = ft.Text("Résultat : aucun", size=14, color="#212121")
-        self.bouton_modifier = ft.ElevatedButton("Modifier", visible=False, on_click=self.ouvrir_modifier, color="#FFFFFF", bgcolor="#E91E63")
-        self.bouton_supprimer = ft.ElevatedButton("Supprimer", visible=False, on_click=self.action_supprimer, color="#FFFFFF", bgcolor="#F44336")
-
-        boite_resultat = ft.Container(
-            content=ft.Column([self.affichage_resultat], scroll=ft.ScrollMode.ALWAYS),
-            width=600, height=380,
-            bgcolor="#FFFFFF",
-            border_radius=10,
-            padding=16,
-            border=ft.border.all(1, "#F8BBD9"),
-            shadow=ft.BoxShadow(blur_radius=8, color=ft.Colors.with_opacity(0.08, ft.Colors.BLACK)),
-        )
-
         return ft.Container(
-            content=ft.Column(
-                [
-                    ft.Text("Fabrication de Prompts AAV", size=28, weight="bold", color=COLOR_PRIMARY),
-                    ft.Divider(height=20, color="transparent"),
+            content=ft.Column([
+                ft.Row([
+                    ft.Container(content=ft.Icon(ft.Icons.SETTINGS_SUGGEST, color="white", size=30), bgcolor="#880E4F", padding=10, border_radius=10),
+                    ft.Text("Referentiel des Prompts AAV", size=28, weight="bold", color="#880E4F"),
+                ]),
+                ft.Text("Supervision et edition des instructions generatrices d'exercices academiques.", size=14, color="grey"),
+                ft.Row([
                     self.champ_id,
-                    ft.Divider(height=10, color="transparent"),
-                    ft.Row([
-                        ft.ElevatedButton("Rechercher", icon=ft.Icons.SEARCH, on_click=self.rechercher, bgcolor=COLOR_PRIMARY, color=ft.Colors.WHITE),
-                        ft.ElevatedButton("Liste des Prompts", icon=ft.Icons.LIST, on_click=self.voir_liste, bgcolor="#AD1457", color=ft.Colors.WHITE),
-                        ft.ElevatedButton("Nouveau Prompt", icon=ft.Icons.ADD, on_click=self.ouvrir_creation, bgcolor=ft.Colors.GREEN_600, color=ft.Colors.WHITE),
-                    ], alignment=ft.MainAxisAlignment.CENTER, wrap=True),
-                    ft.Divider(height=15, color="transparent"),
-                    boite_resultat,
-                    ft.Divider(height=15, color="transparent"),
-                    ft.Row([self.bouton_modifier, self.bouton_supprimer], alignment=ft.MainAxisAlignment.CENTER, spacing=20),
-                ],
-                horizontal_alignment=ft.CrossAxisAlignment.CENTER,
-                spacing=0,
-                scroll=ft.ScrollMode.AUTO,
-            ),
-            bgcolor="#FFFFFF",
-            expand=True,
-            padding=20,
+                    ft.ElevatedButton("Rechercher", icon=ft.Icons.SEARCH, on_click=self.search, bgcolor="#880E4F", color="white", style=ft.ButtonStyle(shape=ft.RoundedRectangleBorder(radius=10))),
+                    ft.ElevatedButton("Parcourir Bibliotheque", icon=ft.Icons.LIBRARY_BOOKS, on_click=self.list_all, bgcolor="#AD1457", color="white", style=ft.ButtonStyle(shape=ft.RoundedRectangleBorder(radius=10))),
+                ], spacing=15),
+                self.result_container
+            ], spacing=20),
+            padding=30, expand=True
         )

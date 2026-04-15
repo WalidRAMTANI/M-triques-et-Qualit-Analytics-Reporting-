@@ -1,32 +1,39 @@
 import flet as ft
-from utils import fetch
+import json
+import httpx
+import re
 
 class GenericEndpointPage:
+    """
+    Page generateur dynamique de tests pour les points de terminaison API.
+    Permet l'exploration recursive et le test unitaire des routes definies dans le referentiel OpenAPI.
+    """
+
     def __init__(self, content_area, title, endpoints):
+        """Initialise le testeur avec une liste de routes et leurs methodes associees."""
         self.content_area = content_area
         self.title = title
         self.endpoints = endpoints
+        self._page = None
 
     def build(self, page):
+        """Construit l'interface graphique du bac a sable API."""
         self._page = page
         
-        output_txt = ft.Text("Résultat JSON de la requête s'affichera ici...", size=12, selectable=True)
+        output_txt = ft.Text("Le flux JSON de retour s'affichera ici apres execution.", size=12, selectable=True)
         output_container = ft.Container(
             content=ft.Column([output_txt], scroll=ft.ScrollMode.AUTO),
-            bgcolor=ft.Colors.WHITE10,
-            border_radius=8,
-            padding=16,
-            height=300,
-            expand=True
+            bgcolor="#F5F5F5", border_radius=8, padding=16, height=300, expand=True,
+            border=ft.border.all(1, "#E0E0E0")
         )
 
         def make_button(ep_path, ep_method):
+            """Genere dynamiquement un composant de test pour une route specifique."""
             input_fields = []
-            import re
             params = re.findall(r"\{([^}]+)\}", ep_path)
             param_controls = {}
             for param in params:
-                tf = ft.TextField(label=param, width=150, dense=True)
+                tf = ft.TextField(label=f"Parametre: {param}", width=150, dense=True, border_radius=8)
                 param_controls[param] = tf
                 input_fields.append(tf)
 
@@ -36,61 +43,51 @@ class GenericEndpointPage:
                     val = tf.value if tf.value else "1"
                     final_path = final_path.replace(f"{{{p}}}", val)
                 
-                # Fetch only works for GET easily in Flet without full httpx wrapper,
-                # but we can try to do a generic fetch using the base endpoint
                 try:
-                    import httpx
                     url = f"http://localhost:8000{final_path}"
                     if ep_method in ['GET', 'POST', 'PUT', 'DELETE', 'PATCH']:
-                        # For mock purposes we just simulate GET or generic HTTP
-                        r = httpx.request(ep_method, url, timeout=5)
+                        r = httpx.request(ep_method, url, timeout=10)
                         try:
                             res = r.json()
                         except:
                             res = r.text
-                        import json
                         output_txt.value = json.dumps(res, indent=2, ensure_ascii=False)
                     else:
-                        output_txt.value = f"Méthode {ep_method} non supportée par le wrapper simple."
+                        output_txt.value = f"Methode {ep_method} non prise en charge."
                 except Exception as ex:
-                    output_txt.value = f"Erreur: {str(ex)}"
+                    output_txt.value = f"Erreur de communication : {str(ex)}"
                 self._page.update()
 
             return ft.Container(
                 content=ft.Column([
-                    ft.Text(f"{ep_method} {ep_path}", weight=ft.FontWeight.W_600),
+                    ft.Text(f"{ep_method} {ep_path}", weight=ft.FontWeight.W_600, color="#4A148C"),
                     ft.Row(input_fields + [
-                        ft.ElevatedButton("Exécuter", on_click=on_click, bgcolor="#9C27B0", color=ft.Colors.WHITE)
+                        ft.ElevatedButton("Executer Requete", on_click=on_click, bgcolor="#7B1FA2", color="white")
                     ], wrap=True)
                 ]),
-                bgcolor=ft.Colors.WHITE10,
-                border_radius=8,
-                padding=12,
-                margin=ft.margin.only(bottom=8)
+                bgcolor="white", border_radius=8, padding=12, margin=ft.margin.only(bottom=8),
+                border=ft.border.all(1, "#F3E5F5")
             )
 
-        buttons = []
-        for ep, methods in self.endpoints.items():
-            for method in methods:
-                if method != 'HEAD':
-                    buttons.append(make_button(ep, method))
+        buttons = [
+            make_button(ep, method)
+            for ep, methods in self.endpoints.items()
+            for method in methods if method != 'HEAD'
+        ]
 
-        page_content = ft.Column([
-            ft.Text(self.title, size=24, weight=ft.FontWeight.W_600, color=ft.Colors.WHITE),
-            ft.Text("Testeur de endpoints API généré dynamiquement", color=ft.Colors.WHITE54, size=13),
-            ft.Divider(color=ft.Colors.WHITE24),
+        return ft.Column([
+            ft.Text(self.title, size=24, weight=ft.FontWeight.W_600, color="#4A148C"),
+            ft.Text("Explorateur dynamique des points de terminaison du systeme AAV.", color="grey", size=13),
+            ft.Divider(color="#E1BEE7"),
             ft.Column(buttons, spacing=4),
-            ft.Divider(color=ft.Colors.WHITE24),
-            ft.Text("Output API :", size=16),
+            ft.Divider(color="#E1BEE7"),
+            ft.Text("Flux de Sortie API :", size=16, weight="bold"),
             output_container
         ], scroll=ft.ScrollMode.AUTO, expand=True)
 
-        return page_content
-
-# Configuration of missing pages based on OpenAPI endpoints
-
+# Configuration de l'inventaire des routes base sur OpenAPI
 MISSING_PAGES_CONFIG = {
-    "Activités Pédagogiques": {
+    "Activites Academiques": {
         "/activites/types": ["GET"],
         "/activites/": ["GET", "POST"],
         "/activites/{activity_id}": ["GET", "PUT", "DELETE"],
@@ -101,7 +98,7 @@ MISSING_PAGES_CONFIG = {
         "/activites/{activity_id}/submit-attempt": ["POST"],
         "/activites/{activity_id}/complete": ["POST"],
     },
-    "Apprenants": {
+    "Referentiel Apprenants": {
         "/learners/": ["GET", "POST"],
         "/learners/{id_apprenant}": ["GET", "PUT", "PATCH", "DELETE"],
         "/learners/{id_apprenant}/external-prerequisites": ["GET", "POST"],
@@ -112,11 +109,11 @@ MISSING_PAGES_CONFIG = {
         "/learners/{id_apprenant}/ontologie/{id_reference}/switch": ["POST"],
         "/learners/{id_apprenant}/progress": ["GET"],
     },
-    "Comparaison": {
+    "Analyse Comparaison": {
         "/metrics/compare/aavs": ["GET"],
         "/metrics/compare/learners": ["GET"],
     },
-    "Moteur d'Exercices": {
+    "Moteur d'Exercices et IA": {
         "/aavs/{id_aav}/prompts": ["GET"],
         "/aavs/{id_aav}/prompts/best": ["GET"],
         "/aavs/{id_aav}/prompts/generate": ["POST"],
@@ -130,7 +127,7 @@ MISSING_PAGES_CONFIG = {
         "/prompts/{id_prompt}/preview": ["POST"],
         "/prompts/{id_prompt}/success-rate": ["GET"],
     },
-    "Navigation": {
+    "Exploration Navigation": {
         "/navigation/{id_apprenant}/accessible": ["GET"],
         "/navigation/{id_apprenant}/in-progress": ["GET"],
         "/navigation/{id_apprenant}/blocked": ["GET"],
@@ -138,15 +135,15 @@ MISSING_PAGES_CONFIG = {
         "/navigation/{id_apprenant}/dashboard": ["GET"],
         "/navigation/{id_apprenant}": ["GET"],
     },
-    "Ontologies": {
+    "Structures Ontologiques": {
         "/ontologies/": ["GET", "POST"],
         "/ontologies/{id_reference}": ["GET", "PUT", "DELETE"],
     },
-    "Fabrication Prompts (CRUD)": {
+    "Gestion des Prompts (CRUD)": {
         "/prompts/": ["GET", "POST"],
         "/prompts/{id_prompt}": ["GET", "PUT", "PATCH", "DELETE"],
     },
-    "Remédiation": {
+    "Diagnostic et Remediation": {
         "/diagnostics/remediation": ["POST"],
         "/learners/{id_apprenant}/diagnostics": ["GET"],
         "/learners/{id_apprenant}/aavs/{id_aav}/root-causes": ["GET"],
@@ -157,11 +154,11 @@ MISSING_PAGES_CONFIG = {
         "/diagnostics/{id_diagnostic}/tree": ["GET"],
         "/learners/{id_apprenant}/progression-map": ["GET"],
     },
-    "Rapports": {
+    "Reporting Institutionnel": {
         "/reports/generate": ["POST"],
         "/reports/global": ["GET"],
     },
-    "Statuts Apprentissage": {
+    "Statuts d'Apprentissage": {
         "/learning-status": ["GET", "POST"],
         "/learning-status/{statut_id}": ["GET", "PUT"],
         "/learning-status/{statut_id}/mastery": ["PATCH"],
@@ -169,12 +166,12 @@ MISSING_PAGES_CONFIG = {
         "/learning-status/{id}/attempts/timeline": ["GET"],
         "/learning-status/{id}/reset": ["POST"],
     },
-    "Tentatives": {
+    "Journal des Tentatives": {
         "/attempts": ["GET", "POST"],
         "/attempts/{id}": ["GET", "DELETE"],
         "/attempts/{id}/process": ["POST"],
     },
-    "Types & Dictionnaires": {
+    "Typologies et Dictionnaires": {
         "/types/activity-types": ["GET"],
         "/types/mastery-levels": ["GET"],
         "/types/disciplines": ["GET"],

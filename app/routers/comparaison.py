@@ -29,17 +29,30 @@ def compare_learners(id_ontologie: int = Query(..., description="ID of the ontol
         raise HTTPException(status_code=404, detail=f"Aucun apprenant trouvé pour l'ontologie {id_ontologie}")
         
     result = []
-    for apprenant in apprenants:
-        # Enforce json format to retrieve dictionary metrics
-        student_data = collect_data_for_student(apprenant["id_apprenant"], "json")
-        nb_tentatives = student_data["nb_tentatives"] if student_data else 0
-        
-        result.append(ApprenantComparaison(
-            id_apprenant=apprenant["id_apprenant"], 
-            nom=apprenant["nom_utilisateur"], 
-            progression=calculer_progression(apprenant["id_apprenant"]), 
-            aavs_bloques=count_aavs_bloques(apprenant["id_apprenant"]),
-            nb_tentatives=nb_tentatives,
-        ))
+    from app.database import get_db_connection, StatutApprentissageModel
+    
+    with get_db_connection() as session:
+        for apprenant in apprenants:
+            learner_id = apprenant["id_apprenant"]
+            
+            # Count AAVs statuses
+            maitrise = session.query(StatutApprentissageModel).filter(
+                StatutApprentissageModel.id_apprenant == learner_id,
+                StatutApprentissageModel.niveau_maitrise >= 1.0
+            ).count()
+            
+            encours = session.query(StatutApprentissageModel).filter(
+                StatutApprentissageModel.id_apprenant == learner_id,
+                StatutApprentissageModel.niveau_maitrise < 1.0,
+                StatutApprentissageModel.niveau_maitrise > 0.0
+            ).count()
+            
+            result.append(ApprenantComparaison(
+                id_apprenant=learner_id, 
+                nom_utilisateur=apprenant["nom_utilisateur"], 
+                progression_globale=calculer_progression(learner_id), 
+                aavs_maitrise=maitrise,
+                aavs_encours=encours
+            ))
         
     return result

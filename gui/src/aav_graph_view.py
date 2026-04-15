@@ -10,8 +10,8 @@ import warnings
 warnings.filterwarnings("ignore", category=DeprecationWarning)
 
 import flet as ft
-from app.routers import aavs
-from app.database import SessionLocal
+import requests
+from requests.exceptions import RequestException
 
 def build_aav_graph_view(page: ft.Page, initial_id=None):
     """
@@ -33,19 +33,7 @@ def build_aav_graph_view(page: ft.Page, initial_id=None):
     
     affichage_resultat = ft.Text("Entrez un ID ou utilisez la liste pour charger un AAV", size=16, color="#1565C0")
     
-    # Boutons d'actions
-    bouton_modifier = ft.ElevatedButton(
-        "Modifier", 
-        visible=False,
-        on_click=lambda e: ouvrir_popup_modifier(e)
-    )
-    bouton_supprimer = ft.ElevatedButton(
-        "Supprimer", 
-        visible=False,
-        on_click=lambda e: action_supprimer(e),
-        color="#FFFFFF",
-        bgcolor="#F44336"
-    )
+    # Les boutons d'actions ont été retirés à la demande de l'utilisateur
     
     boite_fixe = ft.Container(
         content=ft.Column([affichage_resultat], scroll=ft.ScrollMode.ALWAYS),
@@ -61,35 +49,42 @@ def build_aav_graph_view(page: ft.Page, initial_id=None):
         if not champ_chiffre.value:
             return
             
-        db = SessionLocal()
         try:
-            res = aavs.get_aav(int(champ_chiffre.value), db)
-            affichage_resultat.value = (
-                f"AAV: #{res['id_aav']}\n"
-                f"Nom: {res['nom']}\n"
-                f"Libelle: {res['libelle_integration']}\n"
-                f"Discipline: {res['discipline']}\n"
-                f"Enseignement: {res['enseignement']}\n\n"
-                f"Description:\n{res['description_markdown']}\n"
-            )
-            affichage_resultat.color = "#212121"
-            bouton_modifier.visible = True
-            bouton_supprimer.visible = True
-            
-        except Exception:
-            affichage_resultat.value = f"Aucun AAV trouvé pour l'ID {champ_chiffre.value}"
+            response = requests.get(f"http://127.0.0.1:8000/aavs/{int(champ_chiffre.value)}")
+            if response.status_code == 200:
+                res = response.json()
+                affichage_resultat.value = (
+                    f"AAV: #{res.get('id_aav')}\n"
+                    f"Nom: {res.get('nom')}\n"
+                    f"Libelle: {res.get('libelle_integration')}\n"
+                    f"Discipline: {res.get('discipline')}\n"
+                    f"Enseignement: {res.get('enseignement')}\n\n"
+                    f"Description:\n{res.get('description_markdown')}\n"
+                )
+                affichage_resultat.color = "#212121"
+                bouton_modifier.visible = True
+                bouton_supprimer.visible = True
+            else:
+                affichage_resultat.value = f"Erreur: AAV non trouvé pour l'ID {champ_chiffre.value}"
+                affichage_resultat.color = "#F44336"
+                bouton_modifier.visible = False
+                bouton_supprimer.visible = False
+        except Exception as err:
+            affichage_resultat.value = f"Erreur de connexion au backend"
             affichage_resultat.color = "#F44336"
             bouton_modifier.visible = False
             bouton_supprimer.visible = False
             
-        finally:
-            db.close()
-            if page: page.update() 
+        if page: 
+            page.update()
 
     def ouvrir_liste(e):
-        db = SessionLocal()
         try:
-            tous = aavs.list_aavs(db)
+            response = requests.get("http://127.0.0.1:8000/aavs/")
+            if response.status_code != 200:
+                print("Erreur lors de la récupération de la liste des AAVs")
+                return
+            tous = response.json()
             
             def charger_id(idx):
                 champ_chiffre.value = str(idx)
@@ -102,9 +97,9 @@ def build_aav_graph_view(page: ft.Page, initial_id=None):
                 items.append(
                     ft.ListTile(
                         leading=ft.Icon(ft.Icons.SCHOOL, color="#2196F3"),
-                        title=ft.Text(f"AAV #{a['id_aav']} - {a['nom']}"),
-                        subtitle=ft.Text(f"{a['discipline']}"),
-                        on_click=lambda e, idx=a['id_aav']: charger_id(idx)
+                        title=ft.Text(f"AAV #{a.get('id_aav')} - {a.get('nom')}"),
+                        subtitle=ft.Text(f"{a.get('discipline')}"),
+                        on_click=lambda e, idx=a.get('id_aav'): charger_id(idx)
                     )
                 )
 
@@ -116,27 +111,33 @@ def build_aav_graph_view(page: ft.Page, initial_id=None):
             page.overlay.append(dialog)
             dialog.open = True
             page.update()
-        finally:
-            db.close()
+        except Exception as err:
+            print(f"Erreur de connexion: {err}")
 
     def ouvrir_popup_modifier(e):
-        db = SessionLocal()
         try:
             id_actuel = int(champ_chiffre.value)
-            res = aavs.get_aav(id_actuel, db)
+            response = requests.get(f"http://127.0.0.1:8000/aavs/{id_actuel}")
+            if response.status_code != 200:
+                print("Erreur de récupération pour modification")
+                return
+                
+            res = response.json()
             
-            champ_nom = ft.TextField(label="Nom", value=res["nom"])
-            champ_desc = ft.TextField(label="Description", value=res["description_markdown"], multiline=True)
+            champ_nom = ft.TextField(label="Nom", value=res.get("nom", ""))
+            champ_desc = ft.TextField(label="Description", value=res.get("description_markdown", ""), multiline=True)
 
             def sauvegarder(ev):
-                db2 = SessionLocal()
                 try:
                     nouvelles_donnees = {"nom": champ_nom.value, "description_markdown": champ_desc.value}
-                    aavs.update_aav(id_actuel, nouvelles_donnees, db2)
-                    dialog.open = False
-                    donnee_aav(None)
-                finally:
-                    db2.close()
+                    update_response = requests.put(f"http://127.0.0.1:8000/aavs/{id_actuel}", json=nouvelles_donnees)
+                    if update_response.status_code == 200:
+                        dialog.open = False
+                        donnee_aav(None)
+                    else:
+                        print(f"Erreur lors de la modification: {update_response.text}")
+                except Exception as err:
+                    print(f"Erreur de connexion: {err}")
 
             dialog = ft.AlertDialog(
                 title=ft.Text(f"Modifier AAV #{id_actuel}"),
@@ -147,19 +148,23 @@ def build_aav_graph_view(page: ft.Page, initial_id=None):
             page.overlay.append(dialog)
             dialog.open = True
             page.update()
-        finally:
-            db.close()
+        except Exception as err:
+            print(f"Erreur: {err}")
 
     def action_supprimer(e):
-        db = SessionLocal()
         try:
-            aavs.delete_aav(int(champ_chiffre.value), db)
-            affichage_resultat.value = "Supprimé avec succès."
-            bouton_modifier.visible = False
-            bouton_supprimer.visible = False
+            response = requests.delete(f"http://127.0.0.1:8000/aavs/{int(champ_chiffre.value)}")
+            if response.status_code in [200, 204]:
+                affichage_resultat.value = "Supprimé avec succès."
+                bouton_modifier.visible = False
+                bouton_supprimer.visible = False
+                page.update()
+            else:
+                affichage_resultat.value = f"Erreur lors de la suppression."
+                page.update()
+        except Exception as err:
+            affichage_resultat.value = f"Erreur de connexion au backend"
             page.update()
-        finally:
-            db.close()
 
     # On s'assure que le champ est vide au démarrage pour éviter d'imposer l'ID 1
     champ_chiffre.value = str(initial_id) if initial_id else ""
@@ -181,7 +186,6 @@ def build_aav_graph_view(page: ft.Page, initial_id=None):
                 ft.Divider(height=15, color="transparent"),
                 boite_fixe,
                 ft.Divider(height=15, color="transparent"),
-                ft.Row([bouton_modifier, bouton_supprimer], alignment=ft.MainAxisAlignment.CENTER),
             ],
             horizontal_alignment=ft.CrossAxisAlignment.CENTER,
         ),
