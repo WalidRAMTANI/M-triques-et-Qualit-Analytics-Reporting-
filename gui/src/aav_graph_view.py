@@ -33,8 +33,6 @@ def build_aav_graph_view(page: ft.Page, initial_id=None):
     
     affichage_resultat = ft.Text("Entrez un ID ou utilisez la liste pour charger un AAV", size=16, color="#1565C0")
     
-    # Les boutons d'actions ont été retirés à la demande de l'utilisateur
-    
     boite_fixe = ft.Container(
         content=ft.Column([affichage_resultat], scroll=ft.ScrollMode.ALWAYS),
         width=600,
@@ -62,18 +60,12 @@ def build_aav_graph_view(page: ft.Page, initial_id=None):
                     f"Description:\n{res.get('description_markdown')}\n"
                 )
                 affichage_resultat.color = "#212121"
-                bouton_modifier.visible = True
-                bouton_supprimer.visible = True
             else:
                 affichage_resultat.value = f"Erreur: AAV non trouvé pour l'ID {champ_chiffre.value}"
                 affichage_resultat.color = "#F44336"
-                bouton_modifier.visible = False
-                bouton_supprimer.visible = False
         except Exception as err:
             affichage_resultat.value = f"Erreur de connexion au backend"
             affichage_resultat.color = "#F44336"
-            bouton_modifier.visible = False
-            bouton_supprimer.visible = False
             
         if page: 
             page.update()
@@ -151,20 +143,7 @@ def build_aav_graph_view(page: ft.Page, initial_id=None):
         except Exception as err:
             print(f"Erreur: {err}")
 
-    def action_supprimer(e):
-        try:
-            response = requests.delete(f"http://127.0.0.1:8000/aavs/{int(champ_chiffre.value)}")
-            if response.status_code in [200, 204]:
-                affichage_resultat.value = "Supprimé avec succès."
-                bouton_modifier.visible = False
-                bouton_supprimer.visible = False
-                page.update()
-            else:
-                affichage_resultat.value = f"Erreur lors de la suppression."
-                page.update()
-        except Exception as err:
-            affichage_resultat.value = f"Erreur de connexion au backend"
-            page.update()
+
 
     # On s'assure que le champ est vide au démarrage pour éviter d'imposer l'ID 1
     champ_chiffre.value = str(initial_id) if initial_id else ""

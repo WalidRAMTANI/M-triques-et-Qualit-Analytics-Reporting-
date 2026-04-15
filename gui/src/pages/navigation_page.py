@@ -173,7 +173,7 @@ class NavigationPage:
                 ft.Text("Veuillez selectionner une categorie d'analyse.", color="#81C784", size=15)
             ], alignment=ft.MainAxisAlignment.CENTER, horizontal_alignment=ft.CrossAxisAlignment.CENTER),
             width=800, height=450, bgcolor="white", border_radius=16, padding=20,
-            border=ft.border.all(1, "#E8F5E9"), alignment=ft.alignment.center
+            border=ft.border.all(1, "#E8F5E9"), alignment=ft.Alignment(0, 0)
         )
 
         def _action_btn(icon, text, click_handler, bg):

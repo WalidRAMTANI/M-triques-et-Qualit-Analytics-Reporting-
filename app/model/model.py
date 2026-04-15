@@ -995,7 +995,14 @@ class LearnerCreate(LearnerBase):  # ? rajouter les choses retirées
     id_apprenant: Optional[int] = None
 
 
-class LearnerUpdate(BaseModel):  # Maintenant on est convaincu
+class LearnerUpdate(BaseModel):
+    """
+    Schema de mise a jour partielle d'un profil apprenant.
+
+    Tous les champs sont optionnels : seuls les champs fournis sont modifies.
+    """
+    nom_utilisateur: Optional[str] = None
+    email: Optional[str] = None
     ontologie_reference_id: Optional[int] = None
     statuts_actifs_ids: Optional[List[int]] = None
     codes_prerequis_externes_valides: Optional[List[str]] = None

@@ -1,13 +1,15 @@
 import sys
-import json
-import requests
-import flet as ft
 from pathlib import Path
 
-# Configuration du chemin racine pour les imports internes
 PROJECT_ROOT = Path(__file__).resolve().parents[3]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
+
+import json
+import requests
+import flet as ft
+from pydantic import ValidationError
+from app.model.model import LearnerCreate, LearnerUpdate, TentativeCreate
 
 class LearnersPage:
     """
@@ -120,8 +122,8 @@ class LearnersPage:
 
     def rechercher(self, e=None):
         """Effectue une requete pour recuperer les informations d'un apprenant par son ID."""
-        if not self.champ_id.value:
-            self._set_error("L'identifiant est requis.")
+        if getattr(self.champ_id, "value", None) is None:
+            self._set_error("Veuillez selectionner un apprenant.")
             return
         
         self._set_result_content(ft.ProgressRing(color="#3949AB"))
@@ -183,25 +185,37 @@ class LearnersPage:
         self._page.update()
 
     def ouvrir_creation(self, e):
-        """Ouvre le formulaire de creation pour un nouveau profil etudiant."""
+        """
+        Affiche le formulaire de creation pour un nouveau profil etudiant.
+        Valide les donnees via Pydantic (LearnerCreate) avant l'envoi API.
+        """
         champ_nom = ft.TextField(label="Nom Complet", width=350)
         champ_email = ft.TextField(label="Adresse Email", width=350)
+        err_text = ft.Text("", color="red", visible=False)
 
         def valider(ev):
             try:
-                response = requests.post("http://127.0.0.1:8000/learners/", json={"nom_utilisateur": champ_nom.value, "email": champ_email.value})
+                learner_data = LearnerCreate(
+                    nom_utilisateur=champ_nom.value or "",
+                    email=champ_email.value or ""
+                )
+                response = requests.post("http://127.0.0.1:8000/learners/", json=learner_data.model_dump())
                 if self._handle_response(response, "Profil cree avec succes."):
                     res = response.json()
                     dialog.open = False
                     self.champ_id.value = str(res.get("id_apprenant", res.get("id", "")))
                     self._page.update()
                     self.rechercher()
+            except ValidationError as ve:
+                err_text.value = f"Erreur de format : {ve.errors()[0]['msg']}"
+                err_text.visible = True
+                self._page.update()
             except Exception as err:
                 self._set_error(f"Erreur technique : {err}")
 
         dialog = ft.AlertDialog(
             title=ft.Text("Nouveau Profil"),
-            content=ft.Column([champ_nom, champ_email], tight=True, spacing=15),
+            content=ft.Column([err_text, champ_nom, champ_email], tight=True, spacing=15),
             actions=[
                 ft.TextButton("Annuler", on_click=lambda _: setattr(dialog, "open", False) or self._page.update()),
                 ft.ElevatedButton("Enregistrer", on_click=valider, bgcolor="#4CAF50", color="white"),
@@ -212,20 +226,38 @@ class LearnersPage:
         self._page.update()
 
     def ouvrir_modifier(self, e):
-        """Permet la mise a jour des informations d'un apprenant existant."""
-        if not self.champ_id.value: return
+        """
+        Affiche le formulaire de modification d'un profil apprenant existant.
+
+        Valide les donnees via Pydantic (LearnerUpdate) avant d'effectuer
+        la requete PUT. Seuls les champs renseignes sont envoyes.
+        """
+        if not getattr(self.champ_id, "value", None):
+            return
         champ_nom = ft.TextField(label="Nom de l'utilisateur", width=350)
         champ_email = ft.TextField(label="Contact Email", width=350)
+        err_text = ft.Text("", color="red", visible=False)
 
         def sauvegarder(ev):
             try:
-                payload = {}
-                if champ_nom.value: payload["nom_utilisateur"] = champ_nom.value
-                if champ_email.value: payload["email"] = champ_email.value
-                
+                update_data = LearnerUpdate(
+                    nom_utilisateur=champ_nom.value or None,
+                    email=champ_email.value or None
+                )
+                payload = update_data.model_dump(exclude_none=True)
+                if not payload:
+                    err_text.value = "Veuillez renseigner au moins un champ."
+                    err_text.visible = True
+                    self._page.update()
+                    return
                 response = requests.put(f"http://127.0.0.1:8000/learners/{int(self.champ_id.value)}", json=payload)
                 if self._handle_response(response, "Profil actualise."):
                     self.rechercher()
+            except ValidationError as ve:
+                err_text.value = f"Donnee invalide : {ve.errors()[0]['msg']}"
+                err_text.visible = True
+                self._page.update()
+                return
             except Exception as err:
                 self._set_error(f"Erreur : {err}")
             finally:
@@ -234,7 +266,7 @@ class LearnersPage:
 
         dialog = ft.AlertDialog(
             title=ft.Text("Modification de compte"),
-            content=ft.Column([champ_nom, champ_email], tight=True, spacing=15),
+            content=ft.Column([err_text, champ_nom, champ_email], tight=True, spacing=15),
             actions=[
                 ft.TextButton("Annuler", on_click=lambda _: setattr(dialog, "open", False) or self._page.update()),
                 ft.ElevatedButton("Appliquer", on_click=sauvegarder, color="white", bgcolor="#FF9800"),
@@ -297,31 +329,52 @@ class LearnersPage:
             self._set_error("Impossible de recuperer les statuts.")
 
     def ouvrir_simulation_tentative(self, e):
-        """Lance une interface de simulation pour generer des tentatives fictives."""
-        if not self.champ_id.value: return
+        """
+        Lance l'interface de simulation Pydantic pour generer des tentatives fictives.
+        Valide avec TentativeCreate avant soumission de l'exercice au Backend API.
+        """
+        if not getattr(self.champ_id, "value", None):
+            self._set_error("Veuillez selectionner un apprenant.")
+            return
+
         champ_aav = ft.TextField(label="Cible AAV (ID)", keyboard_type=ft.KeyboardType.NUMBER)
         champ_score = ft.Slider(min=0, max=100, divisions=10, label="{value}%", value=80)
+        err_text = ft.Text("", color="red", visible=False)
         
         def valider(ev):
             try:
-                payload = {
-                    "id_apprenant": int(self.champ_id.value),
-                    "id_aav_cible": int(champ_aav.value),
-                    "score_obtenu": champ_score.value / 100.0,
-                    "id_exercice_ou_evenement": 1,
-                    "est_valide": True,
-                    "temps_resolution_secondes": 45
-                }
-                response = requests.post("http://127.0.0.1:8000/attempts/", json=payload)
+                tentative_data = TentativeCreate(
+                    id_apprenant=int(self.champ_id.value),
+                    id_aav_cible=int(champ_aav.value),
+                    score_obtenu=float(champ_score.value / 100.0),
+                    id_exercice_ou_evenement=1,
+                    est_valide=True,
+                    temps_resolution_secondes=45
+                )
+                response = requests.post("http://127.0.0.1:8000/attempts/", json=tentative_data.model_dump())
                 if self._handle_response(response, "Tentative enregistree."):
                     dialog.open = False
                     self.voir_progression(None)
+                else:
+                    err_text.value = f"Refus API: {response.text}"
+                    err_text.visible = True
+                    self._page.update()
+            except ValidationError as ve:
+                err_text.value = f"Saisie invalide (Pydantic) : {ve.errors()[0]['msg']}"
+                err_text.visible = True
+                self._page.update()
+            except ValueError:
+                err_text.value = "Identifiant d'AAV invalide (doit etre numerique)."
+                err_text.visible = True
+                self._page.update()
             except Exception as ex:
-                self._set_error(f"Echec de la simulation : {ex}")
+                err_text.value = f"Echec de la simulation : {ex}"
+                err_text.visible = True
+                self._page.update()
 
         dialog = ft.AlertDialog(
             title=ft.Text("Simulation Pedagogique"),
-            content=ft.Column([champ_aav, ft.Text("Niveau de performance :"), champ_score], tight=True),
+            content=ft.Column([err_text, champ_aav, ft.Text("Niveau de performance :"), champ_score], tight=True),
             actions=[
                 ft.TextButton("Annuler", on_click=lambda _: setattr(dialog, "open", False) or self._page.update()),
                 ft.ElevatedButton("Simuler", on_click=valider, bgcolor="#FF6F00", color="white")
@@ -334,10 +387,24 @@ class LearnersPage:
     def build(self, page: ft.Page):
         """Cree la structure visuelle de la page de gestion des apprenants."""
         self._page = page
-        self.champ_id = ft.TextField(
-            label="Identifiant Apprenant", width=220, border_radius=12,
-            bgcolor="#FFFFFF", prefix_icon=ft.Icons.PERSON_PIN
+        
+        # Charger les apprenants pour le Dropdown
+        self.champ_id = ft.Dropdown(
+            label="Selection Apprenant", width=250, border_radius=12,
+            bgcolor="#FFFFFF"
         )
+        try:
+            resp = requests.get("http://127.0.0.1:8000/learners/")
+            if resp.status_code == 200:
+                data = resp.json()
+                items = data if isinstance(data, list) else data.get("learners", [])
+                opts = []
+                for l in items:
+                    id_val = l.get("id_apprenant", l.get("id"))
+                    opts.append(ft.dropdown.Option(str(id_val), f"#{id_val} - {l.get('nom_utilisateur')}"))
+                self.champ_id.options = opts
+        except Exception:
+            pass
         
         self.result_container = ft.Container(
             content=ft.Column([
@@ -374,7 +441,7 @@ class LearnersPage:
         
         analytics = ft.Row([
             _action_btn(ft.Icons.AUTO_GRAPH, "Maitrise Generale", self.voir_progression, "white", "#00ACC1"),
-            _action_btn(ft.Icons.SCIENCE, "Simuler Travail", self.ouvrir_simulation_tentative, "white", "#FF6F00") if self.is_professor else ft.Container(),
+            _action_btn(ft.Icons.SCIENCE, "Simuler Tentative", self.ouvrir_simulation_tentative, "white", "#FF6F00"),
             _action_btn(ft.Icons.FACT_CHECK, "Statuts Detaillees", self.voir_statuts, "white", "#8E24AA"),
         ], spacing=15)
 

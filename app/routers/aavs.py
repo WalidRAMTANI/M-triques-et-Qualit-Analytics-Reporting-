@@ -39,6 +39,9 @@ def get_aavs(discipline: str = None, db: Session = Depends(get_db)):
             "discipline": aav.discipline,
             "enseignement": aav.enseignement,
             "id_enseignant": getattr(aav, "id_enseignant", None),
+            "type_aav": getattr(aav, "type_aav", "N/A"),
+            "enfants_ids": getattr(aav, "aav_enfant_ponderation", []) or getattr(aav, "enfants_ids", []),
+            "prerequis_ids": getattr(aav, "prerequis_ids", []),
         }
         for aav in aavs
     ]
@@ -71,12 +74,14 @@ def get_aav(aav_id: int, db: Session = Depends(get_db)):
         "id_aav": aav.id_aav,
         "nom": aav.nom,
         "libelle_integration": aav.libelle_integration,
+        "discipline": aav.discipline,
         "enseignement": aav.enseignement,
         "id_enseignant": getattr(aav, "id_enseignant", None),
         "description_markdown": aav.description_markdown,
         "type_aav": getattr(aav, "type_aav", "N/A"),
         "type_evaluation": getattr(aav, "type_evaluation", "N/A"),
         "prerequis_ids": getattr(aav, "prerequis_ids", []),
+        "enfants_ids": getattr(aav, "aav_enfant_ponderation", []) or getattr(aav, "enfants_ids", []),
         "is_active": getattr(aav, "is_active", True),
         "version": getattr(aav, "version", 1),
         "created_at": getattr(aav, "created_at", None),

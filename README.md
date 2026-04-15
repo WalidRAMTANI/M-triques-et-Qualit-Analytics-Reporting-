@@ -2,17 +2,45 @@
 
 **Plateforme d'Analytics et de Reporting pour la Gestion Pédagogique des Acquis d'Apprentissage Visés (AAV)**
 
-Une API REST moderne construite avec **FastAPI** et **SQLAlchemy** pour suivre, analyser et rapporter la progression des apprenants dans un système d'apprentissage structuré autour des Acquis d'Apprentissage Visés (AAV).
+API REST construite avec **FastAPI** et **SQLAlchemy**, associée à une interface graphique desktop native développée avec **Flet**, pour le suivi, l'analyse et le reporting de la progression des apprenants dans un système structuré autour des AAV (Acquis d'Apprentissage Visés).
 
 ---
 
-## 📋 Table des Matières
+## Demarrage Express
+
+**Windows (PowerShell) :**
+```powershell
+python -m venv venv; .\venv\Scripts\pip.exe install -r requirements.txt; .\venv\Scripts\python.exe app/populate_gui_data.py; Start-Process powershell -ArgumentList "-NoExit","-Command",".\venv\Scripts\uvicorn.exe app.main:app --port 8000"; Start-Sleep 3; .\venv\Scripts\python.exe gui\src\main.py
+```
+
+**macOS / Linux :**
+```bash
+python3 -m venv venv && ./venv/bin/pip install -r requirements.txt && ./venv/bin/python app/populate_gui_data.py && ./venv/bin/uvicorn app.main:app --port 8000 & sleep 3 && ./venv/bin/python gui/src/main.py
+```
+
+**Via Makefile (macOS / Linux) :**
+```bash
+make run
+```
+
+Ces commandes :
+1. Creent l'environnement virtuel et installent les dependances
+2. Peuplent la base de donnees (15 entrees par table)
+3. Lancent le backend FastAPI (nouvelle fenetre / processus en arriere-plan)
+4. Attendent 3 secondes puis lancent l'interface graphique Flet
+
+> L'API est accessible sur http://127.0.0.1:8000/docs une fois demarre.
+
+---
+
+## Table des Matières
 
 - [Vue d'ensemble](#vue-densemble)
 - [Fonctionnalités principales](#fonctionnalités-principales)
 - [Architecture](#architecture)
 - [Installation](#installation)
 - [Démarrage rapide](#démarrage-rapide)
+- [Interface Graphique Flet](#interface-graphique-flet)
 - [API Endpoints](#api-endpoints)
 - [Tests](#tests)
 - [Structure du projet](#structure-du-projet)
@@ -22,21 +50,23 @@ Une API REST moderne construite avec **FastAPI** et **SQLAlchemy** pour suivre, 
 
 ---
 
-## 🎯 Vue d'ensemble
+## Vue d'ensemble
 
-Ce projet fournit une solution complète pour les équipes pédagogiques afin de :
+Ce projet fournit une solution complète pour les équipes pédagogiques :
 
 - **Monitorer** la progression des apprenants vers les objectifs d'apprentissage (AAV)
 - **Détecter** automatiquement les AAV problématiques (trop difficiles, fragiles, ignorés)
 - **Analyser** les patterns d'apprentissage et les points de blocage
 - **Générer** des rapports détaillés en JSON, CSV et PDF
-- **Visualiser** les KPI et les métriques de qualité via un tableau de bord
+- **Visualiser** l'ontologie des compétences via des graphes de dépendances
+- **Simuler** des tentatives d'apprenants pour valider les parcours pédagogiques
 
 ---
 
-## ✨ Fonctionnalités principales
+## Fonctionnalités principales
 
-### 🚨 Système d'Alertes Intelligentes
+### Système d'Alertes Intelligentes
+
 - Détection automatique des AAV **problématiques**
 - Catégories d'alerte :
   - **Difficiles** : AAV avec faible taux de succès
@@ -44,78 +74,88 @@ Ce projet fournit une solution complète pour les équipes pédagogiques afin de
   - **Inutilisés** : AAV sans tentatives récentes
   - **Bloquants** : AAV prérequis critiques non maîtrisés
 
-### 📊 Calcul de Métriques
-- **Taux de succès** : % d'apprenants ayant maîtrisé l'AAV
-- **Couverture pédagogique** : % d'AAV utilisés dans les activités
-- **Utilisabilité** : Nombre de tentatives et d'apprenants engagés
-- **Progression** : Évolution du niveau de maîtrise dans le temps
+### Calcul de Métriques
 
-### 📄 Génération de Rapports
+- **Taux de succès** : pourcentage d'apprenants ayant maîtrisé l'AAV
+- **Couverture pédagogique** : pourcentage d'AAV utilisés dans les activités
+- **Utilisabilité** : nombre de tentatives et d'apprenants engagés
+- **Progression** : évolution du niveau de maîtrise dans le temps
+
+### Génération de Rapports
+
 - Formats supportés : **JSON**, **CSV**, **PDF** (généré nativement sans dépendances externes)
 - Types de rapports :
   - Par AAV (détails complets, métriques, apprenants concernés)
   - Par apprenant (progression personnalisée, lacunes identifiées)
   - Par discipline (couverture, efficacité pédagogique)
-  - Périodiques (snapshots temporels)
 
-### 📈 Tableau de Bord
-- Vue d'ensemble des KPI (indicateurs de performance clés)
-- Graphiques et statistiques globales
-- Filtrage par discipline et cohort
-- Data exportable
+### Gestion des AAV
 
-### 🔄 Comparaisons Analytiques
-- Comparer disciplines entre elles
-- Analyser les différences de progression entre groupes
-- Identifier les meilleures pratiques pédagogiques
+- Création d'AAV avec validation Pydantic côté client (formulaire Flet)
+- Liaison des dépendances parent/enfant (AAV Composite / Atomique)
+- Gestion des prérequis avec visualisation en graphe
+
+### Suivi des Apprenants
+
+- Sélection d'un apprenant via liste déroulante
+- Consultation de la fiche de maîtrise (niveau par AAV)
+- Simulation de tentatives pédagogiques avec calcul automatique du niveau
 
 ---
 
-## 🏗️ Architecture
+## Architecture
 
 ### Architecture en couches
 
 ```
-┌─────────────────────────────────────┐
-│     API REST - FastAPI              │
-│  (Routers: alerts, reports, etc.)   │
-├─────────────────────────────────────┤
-│     Services (Métier)               │
-│  (Calculs, génération, détection)   │
-├─────────────────────────────────────┤
-│     Data Access Layer               │
-│  (SQLAlchemy ORM, Repositories)     │
-├─────────────────────────────────────┤
-│     Base de données                 │
-│  (SQLite - platonAAV.db)            │
-└─────────────────────────────────────┘
++-----------------------------------------+
+|   Interface Graphique Desktop (Flet)    |
+|   (Pages: AAVs, Apprenants, Graphes...) |
++-----------------------------------------+
+              |  HTTP / REST
++-----------------------------------------+
+|     API REST - FastAPI                  |
+|  (Routers: aavs, attempts, statuts...)  |
++-----------------------------------------+
+|     Services Metier                     |
+|  (Calculs, generation, detection)       |
++-----------------------------------------+
+|     Data Access Layer                   |
+|  (SQLAlchemy ORM)                       |
++-----------------------------------------+
+|     Base de donnees SQLite              |
+|  (platonAAV.db)                         |
++-----------------------------------------+
 ```
 
 ### Flux de données
 
 ```
-Requête HTTP
-    ↓
-Router (aavs.py, alerts.py, etc.)
-    ↓
-Service (alert_detector.py, metric_calculator.py, etc.)
-    ↓
-Database Models (SQLAlchemy ORM)
-    ↓
-SQLite Database
-    ↓
-Response JSON/CSV/PDF
+Action Utilisateur (Flet GUI)
+    |
+Validation Pydantic Client-Side
+    |
+Requete HTTP (httpx / requests)
+    |
+Router FastAPI (aavs.py, attempts.py, etc.)
+    |
+Service Metier (metric_calculator.py, etc.)
+    |
+SQLAlchemy ORM
+    |
+SQLite (platonAAV.db)
+    |
+Reponse JSON -> Flet UI
 ```
 
 ---
 
-## 🛠️ Installation
+## Installation
 
 ### Prérequis
 
-- **Python** 3.9 ou supérieur
+- **Python** 3.10 ou supérieur
 - **pip** (gestionnaire de paquets Python)
-- **Git** (optionnel, pour cloner le dépôt)
 
 ### Étapes d'installation
 
@@ -123,19 +163,19 @@ Response JSON/CSV/PDF
 
 ```bash
 git clone <url-du-repo>
-cd projet_python
+cd M-triques-et-Qualit-Analytics-Reporting-
 ```
 
 #### 2. Créer un environnement virtuel
 
 ```bash
-# macOS / Linux
-python3 -m venv venv
-source venv/bin/activate
+python -m venv venv
 
 # Windows
-python -m venv venv
 .\venv\Scripts\activate
+
+# macOS / Linux
+source venv/bin/activate
 ```
 
 #### 3. Installer les dépendances
@@ -144,154 +184,165 @@ python -m venv venv
 pip install -r requirements.txt
 ```
 
-Les dépendances principales sont :
-- **FastAPI** (0.104.0+) : Framework web asynchrone
-- **Uvicorn** (0.24.0+) : Serveur ASGI
-- **Pydantic** (2.5.0+) : Validation et sérialisation
-- **SQLAlchemy** (2.0.0+) : ORM SQL
-- **Pytest** (7.4.0+) : Framework de test
+Dépendances principales :
 
-#### 4. Initialiser la base de données
+- **FastAPI** : framework web asynchrone
+- **Uvicorn** : serveur ASGI
+- **Pydantic v2** : validation et sérialisation, utilisée côté backend ET côté client GUI
+- **SQLAlchemy** : ORM SQL
+- **Flet** (0.84+) : framework interface graphique desktop Python
+- **Matplotlib / NetworkX** : génération de graphes d'ontologies
+- **httpx / requests** : appels HTTP depuis la GUI vers l'API
 
-La base de données SQLite (`platonAAV.db`) est **automatiquement créée** au premier lancement du serveur.
+#### 4. Peupler la base de données
 
 ```bash
-# La création se fait lors du démarrage :
-uvicorn app.main:app --reload
+python app/populate_gui_data.py
 ```
+
+Ce script injecte 15 entrées par table (Enseignants, AAVs, Apprenants, Sessions, StatutApprentissage, Tentatives) avec des relations parent/enfant entre AAVs.
 
 ---
 
-## 🚀 Démarrage rapide
+## Démarrage rapide
 
-### Lancer le serveur de développement
+### Lancer le backend (FastAPI)
 
 ```bash
-# Depuis le répertoire racine
-uvicorn app.main:app --reload
+# Windows
+.\venv\Scripts\uvicorn.exe app.main:app --port 8000
+
+# macOS / Linux
+uvicorn app.main:app --port 8000
 ```
 
-**Résultat :**
-```
-INFO:     Uvicorn running on http://127.0.0.1:8000
-INFO:     Application startup complete
+### Lancer l'interface graphique (Flet)
+
+```bash
+# Windows
+.\venv\Scripts\python.exe gui\src\main.py
+
+# macOS / Linux
+python gui/src/main.py
 ```
 
-### Accéder à l'API
+### Accéder à la documentation API
 
 | Ressource | URL |
 |-----------|-----|
-| 📚 **Swagger UI** | [http://127.0.0.1:8000/docs](http://127.0.0.1:8000/docs) |
-| 📖 **ReDoc** | [http://127.0.0.1:8000/redoc](http://127.0.0.1:8000/redoc) |
-| 🔧 **OpenAPI Schema** | [http://127.0.0.1:8000/openapi.json](http://127.0.0.1:8000/openapi.json) |
-
-### Commande de démarrage complète (one-liner)
-
-**Installation complète + Tests + Serveur :**
-
-macOS / Linux:
-```bash
-python3 -m venv venv && \
-source venv/bin/activate && \
-pip install -r requirements.txt && \
-pytest --cov=app tests/ && \
-uvicorn app.main:app --reload
-```
-
-Windows:
-```bash
-python -m venv venv && ^
-.\venv\Scripts\activate && ^
-pip install -r requirements.txt && ^
-pytest --cov=app tests/ && ^
-uvicorn app.main:app --reload
-```
-
-**Explications :**
-1. `python3 -m venv venv` - Crée l'environnement virtuel
-2. `source venv/bin/activate` - Active l'environnement virtuel
-3. `pip install -r requirements.txt` - Installe toutes les dépendances
-4. `pytest --cov=app tests/` - Lance tous les tests avec rapport de couverture
-5. `uvicorn app.main:app --reload` - Lance le serveur de développement
+| Swagger UI | http://127.0.0.1:8000/docs |
+| ReDoc | http://127.0.0.1:8000/redoc |
+| OpenAPI Schema | http://127.0.0.1:8000/openapi.json |
 
 ---
 
-## 📡 API Endpoints
+## Interface Graphique Flet
 
-### 🎓 AAVs (Acquis d'Apprentissage Visés)
+L'application desktop est organisée autour d'une barre de navigation latérale donnant accès aux modules suivants :
+
+| Module | Description |
+|--------|-------------|
+| Referentiel des AAV | Liste filtrée, fiche détaillée avec Markdown, graphe ontologique |
+| Referentiel Apprenants | Sélection, fiche de progression, simulation de tentatives |
+| Historique Tentatives | Suivi des tentatives par apprenant et par AAV |
+| Statuts Acquisition | Niveau de maîtrise par apprenant/AAV |
+| Alertes Critiques | Détection et visualisation des AAV problématiques |
+| Analyse des Métriques | KPI de qualité par discipline |
+| Exploration Ontologies | Graphes de dépendances interactifs |
+| Génération de Rapports | Export JSON, CSV, PDF |
+| Moteur d'Exercices | Simulation et navigation de parcours |
+| Module Comparaison | Comparaison inter-disciplines |
+| Activités Académiques | CRUD des activités pédagogiques |
+| Pilotage Sessions | Administration des sessions (mode Professeur) |
+| Pilotage Dashboard | Vue KPI globale (mode Professeur) |
+
+### Mode Professeur
+
+L'accès aux fonctions d'administration (création d'AAV, suppression, pilotage) est conditionné à l'authentification via le bouton **"Authentification Admin"** dans la barre latérale.
+
+### Validation Pydantic côté client
+
+Tous les formulaires de saisie (création AAV, nouveau profil apprenant, simulation de tentative) utilisent les schemas Pydantic du backend avant tout envoi HTTP. Les erreurs de validation s'affichent directement dans la fenêtre de dialogue sans fermer le formulaire.
+
+---
+
+## API Endpoints
+
+### AAVs (Acquis d'Apprentissage Visés)
 
 | Méthode | Endpoint | Description |
 |---------|----------|-------------|
-| `GET` | `/aavs` | Récupérer tous les AAV (filtrage par discipline possible) |
-| `GET` | `/aavs/{aav_id}` | Détails complets d'un AAV spécifique |
+| `GET` | `/aavs/` | Lister tous les AAV (filtrage par discipline) |
+| `GET` | `/aavs/{aav_id}` | Détails complets d'un AAV |
 | `POST` | `/aavs/` | Créer un nouvel AAV |
 | `PUT` | `/aavs/{aav_id}` | Mettre à jour un AAV |
 | `DELETE` | `/aavs/{aav_id}` | Supprimer un AAV |
 
-**Exemple :**
-```bash
-curl http://127.0.0.1:8000/aavs?discipline=Mathématiques
-```
+### Apprenants
 
-### 🚨 Alertes
+| Méthode | Endpoint | Description |
+|---------|----------|-------------|
+| `GET` | `/learners/` | Lister tous les apprenants |
+| `GET` | `/learners/{id}` | Fiche d'un apprenant |
+| `POST` | `/learners/` | Créer un profil apprenant |
+| `PUT` | `/learners/{id}` | Modifier un profil |
+| `DELETE` | `/learners/{id}` | Supprimer un profil |
+| `GET` | `/learners/{id}/progress` | Niveau de maîtrise par AAV |
+| `GET` | `/learners/{id}/learning-status` | Statuts d'apprentissage détaillés |
+
+### Tentatives
+
+| Méthode | Endpoint | Description |
+|---------|----------|-------------|
+| `GET` | `/attempts/` | Lister les tentatives (filtres disponibles) |
+| `GET` | `/attempts/{id}` | Détails d'une tentative |
+| `POST` | `/attempts/` | Enregistrer une tentative (recalcul maîtrise automatique) |
+| `DELETE` | `/attempts/{id}` | Supprimer une tentative |
+| `POST` | `/attempts/{id}/process` | Retraiter une tentative et recalculer la progression |
+
+### Statuts d'Apprentissage
+
+| Méthode | Endpoint | Description |
+|---------|----------|-------------|
+| `GET` | `/learning-status` | Lister tous les statuts |
+| `POST` | `/learning-status` | Créer un statut apprenant/AAV |
+| `PUT` | `/learning-status/{id}` | Mettre à jour un statut |
+
+### Alertes
 
 | Méthode | Endpoint | Description |
 |---------|----------|-------------|
 | `GET` | `/alerts` | Lister toutes les alertes détectées |
-| `GET` | `/alerts?type=difficult` | Filtrer par type d'alerte |
-| `GET` | `/alerts/{alert_id}` | Détails d'une alerte |
 
 **Types d'alerte :** `difficult`, `fragile`, `unused`, `blocking`
 
-### 📊 Métriques
+### Métriques
 
 | Méthode | Endpoint | Description |
 |---------|----------|-------------|
-| `GET` | `/metrics/aav/{aav_id}` | Calculer les métriques d'un AAV |
+| `GET` | `/metrics/aav/{aav_id}` | Métriques d'un AAV |
 | `GET` | `/metrics/discipline/{discipline}` | Métriques par discipline |
 | `GET` | `/metrics/learner/{learner_id}` | Progression d'un apprenant |
 
-**Métriques retournées :**
-- `success_rate` : Taux de succès (0.0 - 1.0)
-- `coverage` : Couverture pédagogique
-- `usability` : Utilisabilité (nombre d'apprenants)
-- `progression` : Progression temporelle
-
-### 📄 Rapports
+### Rapports
 
 | Méthode | Endpoint | Description |
 |---------|----------|-------------|
 | `GET` | `/reports/aav/{aav_id}?format=json` | Rapport complet sur un AAV |
-| `GET` | `/reports/learner/{learner_id}?format=pdf` | Progression personnalisée |
-| `GET` | `/reports/discipline/{discipline}?format=csv` | Données de discipline |
+| `GET` | `/reports/learner/{learner_id}?format=pdf` | Rapport de progression |
+| `GET` | `/reports/discipline/{discipline}?format=csv` | Rapport par discipline |
 
-**Formats supportés :** `json`, `csv`, `pdf`
-
-### 📈 Tableau de Bord
+### Sessions et Activités
 
 | Méthode | Endpoint | Description |
 |---------|----------|-------------|
-| `GET` | `/dashboard` | Vue d'ensemble des KPI |
-| `GET` | `/dashboard/health` | État général de l'ontologie |
-
-### 🔄 Comparaisons
-
-| Méthode | Endpoint | Description |
-|---------|----------|-------------|
-| `GET` | `/metrics/compare` | Comparer deux disciplines |
-| `GET` | `/metrics/compare?d1=Math&d2=Français` | Comparaison détaillée |
-
-### 📚 Sessions et Activités
-
-| Méthode | Endpoint | Description |
-|---------|----------|-------------|
-| `GET` | `/sessions` | Lister les sessions |
-| `GET` | `/activities` | Lister les activités pédagogiques |
+| `GET` | `/sessions/` | Lister les sessions |
+| `GET` | `/activities/` | Lister les activités |
 | `POST` | `/activities/` | Créer une activité |
 
 ---
 
-## 🧪 Tests
+## Tests
 
 ### Exécuter tous les tests
 
@@ -311,7 +362,7 @@ pytest -v
 pytest tests/test_metric.py -v
 ```
 
-### Coverage (couverture de tests)
+### Coverage
 
 ```bash
 pytest --cov=app tests/
@@ -319,269 +370,202 @@ pytest --cov=app tests/
 
 ---
 
-## 📂 Structure du projet
+## Structure du projet
 
 ```
-projet_python/
-│
-├── app/
-│   ├── __init__.py
-│   ├── main.py                    # Point d'entrée FastAPI
-│   ├── database.py                # Configuration SQLAlchemy & ORM models
-│   │
-│   ├── model/
-│   │   ├── __init__.py
-│   │   └── model.py               # Schémas Pydantic (API)
-│   │
-│   ├── services/
-│   │   ├── __init__.py
-│   │   ├── metric_calculator.py   # Calcul des métriques (24 fonctions)
-│   │   ├── dashboard_data.py      # Préparation données dashboard
-│   │   ├── alert_detector.py      # Détection des alertes
-│   │   └── report_generator.py    # Génération de rapports JSON/CSV/PDF
-│   │
-│   ├── routers/
-│   │   ├── __init__.py
-│   │   ├── aavs.py                # CRUD AAV
-│   │   ├── alerts.py              # Endpoints alertes
-│   │   ├── metrics.py             # Endpoints métriques
-│   │   ├── reports.py             # Endpoints rapports
-│   │   ├── dashboard.py           # Endpoints tableau de bord
-│   │   ├── comparaison.py         # Endpoints comparaisons
-│   │   ├── sessions.py            # Endpoints sessions
-│   │   ├── types.py               # Endpoints types
-│   │   └── activitePedagogique.py # CRUD activités
-│   │
-│   ├── helper/
-│   │   ├── __init__.py
-│   │   └── tables.py              # Utilitaires helper
-│   │
-│   └── __pycache__/
-│
-├── tests/
-│   ├── __init__.py
-│   ├── conftest.py                # Fixtures pytest
-│   ├── test_metric.py             # Tests métriques
-│   ├── test_dashboard.py          # Tests dashboard
-│   ├── test_generate.py           # Tests génération rapports
-│   └── test_services.py           # Tests services
-│
-├── platonAAV.db                   # Base de données SQLite
-├── donnees_test.sql               # Jeu de données test/démo
-├── requirements.txt               # Dépendances Python
-├── pytest.ini                     # Configuration pytest
-├── description_groupe_7.yaml      # Metadata du projet
-└── README.md                      # Ce fichier
+M-triques-et-Qualit-Analytics-Reporting-/
+|
++-- app/
+|   +-- main.py                      # Point d'entree FastAPI, declaration des routers
+|   +-- database.py                  # Configuration SQLAlchemy et modeles ORM
+|   +-- populate_gui_data.py         # Script de peuplement base de donnees (15 entrees/table)
+|   |
+|   +-- model/
+|   |   +-- model.py                 # Schemas Pydantic v2 (AAVCreate, TentativeCreate, etc.)
+|   |   +-- schemas.py               # Schemas complementaires
+|   |
+|   +-- services/
+|   |   +-- metric_calculator.py     # Calcul des metriques de qualite
+|   |   +-- dashboard_data.py        # Agregation des donnees pour le tableau de bord
+|   |   +-- alert_detector.py        # Detection des AAV problematiques
+|   |   +-- report_generator.py      # Generation multi-format JSON/CSV/PDF
+|   |   +-- maitrise.py              # Calcul du niveau de maitrise
+|   |
+|   +-- routers/
+|       +-- aavs.py                  # CRUD AAV (avec discipline, type_aav, enfants_ids)
+|       +-- attempts.py              # Gestion tentatives et recalcul de maitrise
+|       +-- statuts.py               # Statuts d'apprentissage par apprenant/AAV
+|       +-- learners.py              # CRUD apprenants et progression
+|       +-- alerts.py                # Detection et exposition des alertes
+|       +-- metrics.py               # Exposition des metriques
+|       +-- reports.py               # Generation et export de rapports
+|       +-- dashboard.py             # Vue d'ensemble KPI
+|       +-- comparaison.py           # Comparaison inter-disciplines
+|       +-- sessions.py              # Gestion des sessions
+|       +-- activitePedagogique.py   # CRUD activites pedagogiques
+|
++-- gui/
+|   +-- src/
+|       +-- main.py                  # Point d'entree Flet, navigation et permissions
+|       +-- pages/
+|           +-- aavs_page.py         # Referentiel AAV, filtres, detail Markdown, graphe
+|           +-- learners_page.py     # Suivi apprenants, dropdown selection, simulation
+|           +-- aav_detail_page.py   # Fiche technique detaillee d'un AAV
+|           +-- attempts_page.py     # Historique des tentatives
+|           +-- statuts_page.py      # Statuts d'apprentissage
+|           +-- alert_page.py        # Alertes pedagogiques
+|           +-- dashboard_page.py    # Tableau de bord KPI
+|           +-- reports_page.py      # Generation de rapports
+|           +-- sessions_page.py     # Gestion des sessions
+|           +-- ontologies_page.py   # Exploration des graphes d'ontologie
+|           +-- sidebar.py           # Barre de navigation laterale
+|           +-- ...                  # Autres pages modules
+|
++-- tests/
+|   +-- conftest.py                  # Fixtures pytest
+|   +-- test_metric.py               # Tests metriques
+|   +-- test_dashboard.py            # Tests tableau de bord
+|   +-- test_generate.py             # Tests generation rapports
+|   +-- test_services.py             # Tests services
+|
++-- platonAAV.db                     # Base de donnees SQLite
++-- requirements.txt                 # Dependances Python
++-- pytest.ini                       # Configuration pytest
++-- description_groupe_7.yaml        # Metadata du projet
++-- README.md                        # Ce fichier
 ```
-
-### Descriptions des répertoires clés
-
-#### `/app/services/`
-**Contient la logique métier isolée des endpoints API**
-- `metric_calculator.py` : 24 fonctions de calcul de métriques
-- `dashboard_data.py` : Agrégation et structuration des données pour le tableau de bord
-- `alert_detector.py` : Algorithmes de détection des problèmes pédagogiques
-- `report_generator.py` : Génération multi-format (JSON, CSV, PDF natif)
-
-#### `/app/routers/`
-**Endpoints RESTful organisés par domaine**
-- Chaque router encapsule les endpoints d'un domaine métier
-- Utilise les services pour la logique
-- Retourne les schémas Pydantic validés
-
-#### `/app/model/`
-**Schémas de données pour API**
-- Basés sur Pydantic v2
-- Séparation claire : ORM models dans `database.py`, schémas API dans `model.py`
-- Évite les boucles circulaires d'import
 
 ---
 
-## 💻 Stack technologique
+## Stack technologique
 
 | Composant | Technologie | Version |
 |-----------|------------|---------|
-| **Framework Web** | FastAPI | 0.104.0+ |
-| **Serveur ASGI** | Uvicorn | 0.24.0+ |
-| **ORM** | SQLAlchemy | 2.0.0+ |
-| **Base de données** | SQLite3 | Native |
-| **Validation** | Pydantic | 2.5.0+ |
-| **Tests** | Pytest | 7.4.0+ |
-| **Python** | 3.9+ | Requis |
-
-### Pourquoi ces technologies ?
-
-- **FastAPI** : Framework moderne, asynchrone, avec documentation auto-générée
-- **SQLAlchemy** : ORM puissant, migrations faciles, requêtes complexes
-- **Pydantic** : Validation robuste avec messages d'erreur clairs
-- **SQLite** : Base légère, portable, sans serveur externe
-- **Pytest** : Framework de test flexible avec fixtures et plugins
+| Framework Web | FastAPI | 0.104.0+ |
+| Serveur ASGI | Uvicorn | 0.24.0+ |
+| ORM | SQLAlchemy | 2.0.0+ |
+| Base de donnees | SQLite3 | Native |
+| Validation | Pydantic | 2.5.0+ |
+| Interface Desktop | Flet | 0.84.0+ |
+| Graphes | NetworkX + Matplotlib | Latest |
+| HTTP Client | httpx / requests | Latest |
+| Tests | Pytest | 7.4.0+ |
+| Python | 3.10+ | Requis |
 
 ---
 
-## 🔧 Notes techniques
+## Notes techniques
+
+### Validation Pydantic côté client (GUI)
+
+La GUI Flet utilise directement les schemas Pydantic du backend avant tout appel HTTP :
+
+```python
+from app.model.model import AAVCreate, TentativeCreate, LearnerCreate
+
+def valider(ev):
+    """Valide les donnees du formulaire via Pydantic puis soumet a l'API."""
+    try:
+        aav_create = AAVCreate(
+            nom=champ_nom.value,
+            discipline=champ_disc.value,
+            ...
+        )
+        r = httpx.post(f"{BASE_URL}/aavs/", json=aav_create.model_dump())
+    except ValidationError as ve:
+        err_text.value = f"Erreur : {ve.errors()[0]['msg']}"
+```
 
 ### Génération PDF Native
 
-Le projet inclut une implémentation originale de génération PDF dans `services/report_generator.py` qui crée des fichiers PDF valides **directement au format binaire**, sans dépendre de librairies externes comme ReportLab ou FPDF.
-
-**Avantages :**
-- ✅ Zéro dépendance supplémentaire
-- ✅ Contrôle complet sur le format
-- ✅ Rapports structurés et professionnels
+Le projet inclut une implémentation originale de génération PDF dans `services/report_generator.py` créant des fichiers valides directement au format binaire, sans dépendances externes.
 
 ### Architecture ORM
 
-**Séparation des modèles :**
-- `app/database.py` : SQLAlchemy ORM models (AAVModel, ApprenantModel, etc.)
-- `app/model/model.py` : Pydantic schemas (AAV, Apprenant, etc.)
+Séparation stricte des modèles :
 
-**Bénéfices :**
-- Évite les boucles circulaires d'import
-- Schémas API indépendants de la structure DB
-- Validation robuste côté API
+- `app/database.py` : SQLAlchemy ORM models (`AAVModel`, `ApprenantModel`, `TentativeModel`, etc.)
+- `app/model/model.py` : Pydantic schemas (`AAVCreate`, `Tentative`, `LearnerCreate`, etc.)
 
-### Documentation des Services
+### Recalcul automatique de la maîtrise
 
-Chaque fonction de service inclut :
-- **Docstring détaillée** en français/anglais
-- **Type hints** complets (entrées et sorties)
-- **Exemples d'usage** quand pertinent
-- **Notes** sur les dépendances
+Lors de chaque `POST /attempts/`, le backend recalcule automatiquement le `niveau_maitrise` de l'apprenant sur l'AAV cible en appliquant l'algorithme de `calculer_maitrise()` sur l'historique complet des tentatives.
 
-Exemple :
+### Convention de code
+
 ```python
-def calculate_success_rate(aav_id: int, db: Session) -> float:
-    """
-    Calcule le taux de succès d'un AAV.
-    
-    Le taux de succès est le pourcentage d'apprenants ayant maîtrisé l'AAV
-    (niveau de maîtrise >= 0.9).
-    
-    Args:
-        aav_id (int): Identifiant de l'AAV
-        db (Session): Session SQLAlchemy
-    
-    Returns:
-        float: Taux de succès (0.0 à 1.0)
-    
-    Example:
-        >>> success = calculate_success_rate(42, db_session)
-        >>> print(f"Success rate: {success:.1%}")
-    """
+# Ordre des imports dans tous les fichiers GUI
+import sys
+from pathlib import Path
+
+PROJECT_ROOT = Path(__file__).resolve().parents[3]
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
+
+# Imports standards puis internes
+import flet as ft
+from pydantic import ValidationError
+from app.model.model import AAVCreate
 ```
+
+- **Modeles ORM** : `PascalCaseModel` (ex : `AAVModel`)
+- **Schemas Pydantic** : `PascalCase` (ex : `AAVCreate`)
+- **Fonctions** : `snake_case` (ex : `calculer_maitrise`)
+- **Constantes** : `UPPER_CASE` (ex : `BASE_URL`)
+- **Docstrings** : format Google style en français
 
 ---
 
-## 📊 Jeu de données
-
-### Données de test incluses
-
-Le fichier `donnees_test.sql` contient un jeu de données complet pour :
-- Tester les fonctionnalités
-- Démontrer les rapports et alertes
-- Valider les métriques
-
-Charger les données :
-```bash
-sqlite3 platonAAV.db < donnees_test.sql
-```
-
----
-
-## 🐛 Dépannage
+## Dépannage
 
 ### Erreur : "ModuleNotFoundError: No module named 'app'"
 
-**Solution :** Vérifier que vous êtes dans le répertoire racine du projet.
-```bash
-cd /Users/ramtani/Desktop/projet_python
+Le chemin racine du projet doit etre dans `sys.path`. Verifier que chaque fichier GUI commence par :
+
+```python
+import sys
+from pathlib import Path
+PROJECT_ROOT = Path(__file__).resolve().parents[3]
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
 ```
 
 ### Erreur : "Database is locked"
 
-**Solution :** Fermer les autres connexions à la base de données. SQLite supporte mal les accès concurrents.
+Fermer les autres connexions a la base de donnees. SQLite supporte mal les acces concurrents depuis plusieurs processus.
 
-### Tests qui échouent
+### Le backend ne repond pas
 
-**Solution :** Réinitialiser la base de données :
+Verifier que Uvicorn est bien en cours d'execution sur le port 8000 avant de lancer la GUI Flet.
+
+### Reinitialiser la base de donnees
+
 ```bash
-rm platonAAV.db
-pytest  # Recréera la DB avec les données de test
-```
-
-### Ports déjà utilisés
-
-**Solution :** Utiliser un autre port :
-```bash
-uvicorn app.main:app --reload --port 8001
+del platonAAV.db
+python app/populate_gui_data.py
 ```
 
 ---
 
-## 📝 Convention de code
+## Développeurs
 
-### Imports
+Projet réalisé par le **Groupe 7** dans le cadre de l'unité d'enseignement **Métriques et Qualité**.
 
-```python
-# Format : absolu depuis app/
-from app.database import SessionLocal, AAVModel
-from app.services.metric_calculator import calculate_success_rate
-from app.model.model import AAV, MetriqueQualiteAAV
-```
-
-### Nommage
-
-- **Modèles ORM** : `PascalCaseModel` (ex: `AAVModel`)
-- **Schémas Pydantic** : `PascalCase` (ex: `AAV`)
-- **Fonctions** : `snake_case` (ex: `calculate_success_rate`)
-- **Constantes** : `UPPER_CASE`
-
-### Docstrings
-
-Utiliser le format Google style :
-```python
-def ma_fonction(param1: int, param2: str) -> bool:
-    """Courte description.
-    
-    Description longue si nécessaire.
-    
-    Args:
-        param1: Description du param
-        param2: Description du param
-    
-    Returns:
-        Description du retour
-    """
-```
-
----
-
-## 👥 Développeurs
-
-Projet développé par le **Groupe 7** dans le cadre de l'unité d'enseignement **Métriques et Qualité**.
-
-| Rôle | Nom |
+| Role | Nom |
 |------|-----|
 | Responsable | Walid RAMTANI |
 | Contributeurs | Groupe 7 |
 
 ---
 
-## 📄 Licence
-
-Ce projet est développé à titre académique. Les conditions d'utilisation sont définies par votre institution pédagogique.
-
----
-
-## 🔗 Ressources utiles
+## Ressources
 
 - [FastAPI Documentation](https://fastapi.tiangolo.com/)
 - [SQLAlchemy Documentation](https://docs.sqlalchemy.org/)
 - [Pydantic Documentation](https://docs.pydantic.dev/)
+- [Flet Documentation](https://flet.dev/docs/)
 - [Pytest Documentation](https://docs.pytest.org/)
 
 ---
 
-**Dernière mise à jour :** 21 mars 2026
-
+**Dernière mise à jour :** Avril 2026

@@ -69,8 +69,8 @@ class DetailsPage:
         self.bouton_graph_interactif = ft.ElevatedButton("Graphe Interactif", icon=ft.Icons.WEB, visible=False, on_click=self.afficher_graphe_interactif, color="white", bgcolor="#9C27B0")
 
         self.markdown_display = ft.Markdown("", selectable=True, extension_set=ft.MarkdownExtensionSet.GITHUB_WEB)
-        self.graph_image = ft.Image(src_base64="", visible=False, border_radius=10)
-        self.graph_display = ft.Container(content=self.graph_image, visible=False, alignment=ft.alignment.center, padding=10, border=ft.border.all(1, "#E0E0E0"), border_radius=10)
+        self.graph_image = ft.Image(src="", visible=False, border_radius=10)
+        self.graph_display = ft.Container(content=self.graph_image, visible=False, alignment=ft.Alignment(0, 0), padding=10, border=ft.border.all(1, "#E0E0E0"), border_radius=10)
 
         boite_resultat = ft.Container(
             content=ft.Column([
@@ -154,7 +154,7 @@ class DetailsPage:
             from app.services.graph_service import generate_aav_dependency_graph
             b64_image = generate_aav_dependency_graph(int(self.aav_id))
             if b64_image:
-                self.graph_image.src_base64 = b64_image
+                self.graph_image.src = f"data:image/png;base64,{b64_image}"
                 self.graph_image.visible = True
                 self.graph_display.visible = True
                 self.bouton_graph.text = "Actualiser"

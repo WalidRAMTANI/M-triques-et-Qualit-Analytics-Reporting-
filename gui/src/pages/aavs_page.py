@@ -1,20 +1,22 @@
 import sys
-import httpx
-import json
-import networkx as nx
-import matplotlib
-import flet as ft
 from pathlib import Path
-from matplotlib.figure import Figure
-from matplotlib.backends.backend_agg import FigureCanvasAgg
-from flet.matplotlib_chart import MatplotlibChart
 
-# Configuration du chemin racine pour les imports internes
 PROJECT_ROOT = Path(__file__).resolve().parents[3]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-# Parametres de l'API
+import httpx
+import json
+import io
+import base64
+import networkx as nx
+import matplotlib
+import flet as ft
+from pydantic import ValidationError
+from matplotlib.figure import Figure
+from matplotlib.backends.backend_agg import FigureCanvasAgg
+from app.model.model import AAVCreate, RegleProgression, TypeAAV, TypeEvaluationAAV
+
 BASE_URL = "http://127.0.0.1:8000"
 
 class AavsPage:
@@ -36,11 +38,11 @@ class AavsPage:
             expand=True, prefix_icon=ft.Icons.SEARCH
         )
         self.discipline_filter = ft.Dropdown(
-            label="Discipline", width=200, on_change=self.filter_data, 
+            label="Discipline", width=200, on_select=self.filter_data, 
             options=[ft.dropdown.Option("Toutes")]
         )
         self.type_filter = ft.Dropdown(
-            label="Typologie", width=150, on_change=self.filter_data, 
+            label="Typologie", width=150, on_select=self.filter_data, 
             options=[
                 ft.dropdown.Option("Tous"),
                 ft.dropdown.Option("Atomique"),
@@ -131,7 +133,7 @@ class AavsPage:
             ft.Row([ft.Icon(ft.Icons.SCHOOL, size=16, color="grey"), ft.Text(f"{a.get('discipline')} - {a.get('enseignement')}", color="grey")]),
             ft.Divider(height=30),
             ft.Text("Descriptif Pedagogique :", weight="bold", size=16),
-            ft.Markdown(desc, selectable=True, extension_set=ft.MarkdownExtensionSet.GITHUB_FLAVORED),
+            ft.Markdown(desc, selectable=True, extension_set=ft.MarkdownExtensionSet.GITHUB_WEB),
             ft.Divider(height=20),
             ft.Row([
                 ft.Column([
@@ -193,7 +195,13 @@ class AavsPage:
             ax.text(0.5, 0.5, "Structure isolee.", ha='center', va='center')
 
         ax.set_title(f"Visualisation Ontologique : {curr_name}", size=14, weight="bold")
-        chart = MatplotlibChart(fig, expand=True)
+
+        canvas = FigureCanvasAgg(fig)
+        buf = io.BytesIO()
+        canvas.print_png(buf)
+        buf.seek(0)
+        img_b64 = base64.b64encode(buf.read()).decode('utf-8')
+        chart = ft.Image(src=f"data:image/png;base64,{img_b64}", expand=True, fit=ft.BoxFit.CONTAIN)
         
         dialog = ft.AlertDialog(
             title=ft.Text("Exploration de l'Ontologie"),
@@ -229,18 +237,33 @@ class AavsPage:
         )
 
     def ouvrir_creation(self, e):
-        """Ouvre un dialogue structure pour l'edition/creation d'un nouvel acquis."""
+        """
+        Ouvre le formulaire de creation d'un nouvel AAV.
+
+        Valide les donnees saisies en utilisant le schema Pydantic AAVCreate
+        avant tout envoi a l'API. Gere egalement la liaison parent/enfant
+        via le champ aav_enfant_ponderation pour les AAV de type Composite.
+        """
         selected_prereqs, selected_children = [], []
         champ_id = ft.TextField(label="Identifiant Unique", keyboard_type=ft.KeyboardType.NUMBER)
         champ_nom = ft.TextField(label="Intitule de la competence")
+        champ_libelle = ft.TextField(label="Libelle d'integration")
         champ_disc = ft.TextField(label="Domaine disciplinaire")
+        champ_ens = ft.TextField(label="Enseignement")
         champ_desc = ft.TextField(label="Description technique (Markdown)", multiline=True, min_lines=3)
         champ_type = ft.SegmentedButton(
-            selected={"atomique"},
-            segments=[ft.Segment(value="atomique", label=ft.Text("Atomique")), ft.Segment(value="composite", label=ft.Text("Composite"))]
+            selected=["Atomique"],
+            segments=[ft.Segment(value="Atomique", label=ft.Text("Atomique")), ft.Segment(value="Composite (Chapitre)", label=ft.Text("Composite"))]
         )
+        champ_eval = ft.Dropdown(
+            label="Type d'evaluation",
+            options=[ft.dropdown.Option(x.value) for x in TypeEvaluationAAV],
+            value=TypeEvaluationAAV.HUMAINE.value
+        )
+        err_text = ft.Text("", color="red", visible=False)
 
         def get_all_ids_options():
+            """Retourne les options Dropdown a partir des AAV charges en memoire."""
             return [ft.dropdown.Option(str(a["id_aav"]), f"#{a['id_aav']} {a['nom']}") for a in self.all_aavs]
 
         drop_prereq = ft.Dropdown(label="Prerequis", options=get_all_ids_options(), width=250)
@@ -248,32 +271,62 @@ class AavsPage:
         chip_row_p, chip_row_c = ft.Row(wrap=True), ft.Row(wrap=True)
 
         def add_id(dropdown, selected_list, chip_row):
+            """Ajoute un identifiant AAV a la liste de selection et affiche un chip."""
             if dropdown.value and dropdown.value not in selected_list:
                 selected_list.append(dropdown.value)
                 chip_row.controls.append(ft.Chip(label=ft.Text(f"#{dropdown.value}"), on_delete=lambda e, val=dropdown.value: remove_id(val, selected_list, chip_row)))
                 self._page.update()
 
         def remove_id(val, selected_list, chip_row):
-            selected_list.remove(val); chip_row.controls = [c for c in chip_row.controls if c.label.value != f"#{val}"]
+            """Retire un identifiant AAV de la liste de selection et supprime son chip."""
+            selected_list.remove(val)
+            chip_row.controls = [c for c in chip_row.controls if c.label.value != f"#{val}"]
             self._page.update()
 
         def valider(ev):
-            is_composite = "composite" in champ_type.selected
+            """
+            Valide les donnees du formulaire via Pydantic puis soumet a l'API.
+
+            Leve une ValidationError si les champs requis sont invalides ou manquants.
+            Les erreurs sont affichees directement dans la vue sans fermer le dialogue.
+            """
+            is_composite = "Composite" in champ_type.selected
             try:
-                payload = {
-                    "id_aav": int(champ_id.value) if champ_id.value else None,
-                    "nom": champ_nom.value, "discipline": champ_disc.value,
-                    "description_markdown": champ_desc.value,
-                    "prerequis_ids": [int(i) for i in selected_prereqs],
-                    "enfants_ids": [int(i) for i in selected_children] if is_composite else []
-                }
+                aav_create = AAVCreate(
+                    id_aav=int(champ_id.value) if champ_id.value else -1,
+                    nom=champ_nom.value or "",
+                    libelle_integration=champ_libelle.value or "",
+                    discipline=champ_disc.value or "",
+                    enseignement=champ_ens.value or "",
+                    description_markdown=champ_desc.value or "",
+                    type_aav=champ_type.selected[0] if champ_type.selected else "Atomique",
+                    type_evaluation=champ_eval.value,
+                    prerequis_ids=[int(i) for i in selected_prereqs],
+                    regles_progression=RegleProgression()
+                )
+                payload = aav_create.model_dump()
+                if is_composite:
+                    payload["aav_enfant_ponderation"] = [int(i) for i in selected_children]
                 r = httpx.post(f"{BASE_URL}/aavs/", json=payload)
                 if r.status_code in [200, 201]:
-                    dialog.open = False; self.load_data()
+                    dialog.open = False
+                    self.load_data()
                 else:
-                    self._page.snack_bar = ft.SnackBar(ft.Text("Erreur lors de la validation.")); self._page.snack_bar.open = True
+                    err_text.value = f"Erreur Serveur: {r.text}"
+                    err_text.visible = True
                 self._page.update()
-            except Exception as ex: print(ex)
+            except ValidationError as ve:
+                err_text.value = f"Erreur de validation : {ve.errors()[0]['msg']} (champ : {ve.errors()[0]['loc'][0]})"
+                err_text.visible = True
+                self._page.update()
+            except ValueError:
+                err_text.value = "Format de nombre invalide pour l'identifiant AAV."
+                err_text.visible = True
+                self._page.update()
+            except Exception as ex:
+                err_text.value = f"Erreur inattendue : {str(ex)}"
+                err_text.visible = True
+                self._page.update()
 
         btn_add_p = ft.IconButton(ft.Icons.ADD, on_click=lambda _: add_id(drop_prereq, selected_prereqs, chip_row_p))
         btn_add_c = ft.IconButton(ft.Icons.ADD, on_click=lambda _: add_id(drop_child, selected_children, chip_row_c))
@@ -282,12 +335,16 @@ class AavsPage:
             title=ft.Text("Definition Technique AAV"),
             content=ft.Container(
                 content=ft.Column([
-                    champ_id, champ_nom, champ_disc, champ_desc,
-                    ft.Text("Architecture :", weight="bold"), champ_type,
+                    err_text,
+                    ft.Row([champ_id, champ_nom]),
+                    ft.Row([champ_libelle, champ_desc], vertical_alignment=ft.CrossAxisAlignment.START),
+                    ft.Row([champ_disc, champ_ens]),
+                    ft.Text("Architecture et Evaluation:", weight="bold"),
+                    ft.Row([champ_type, champ_eval]),
                     ft.Row([drop_prereq, btn_add_p]), chip_row_p,
                     ft.Row([drop_child, btn_add_c]), chip_row_c,
                 ], scroll=ft.ScrollMode.AUTO, spacing=15),
-                width=500, height=600
+                width=650, height=700
             ),
             actions=[
                 ft.TextButton("Annuler", on_click=lambda _: setattr(dialog, "open", False) or self._page.update()),

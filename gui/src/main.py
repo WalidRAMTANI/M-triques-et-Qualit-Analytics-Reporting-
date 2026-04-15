@@ -50,7 +50,7 @@ def _unavailable_view(name: str, filename: str) -> ft.Container:
             ft.Text(f"Vue '{name}' non disponible", size=20, weight="bold", color="#F44336"),
             ft.Text(f"Le module '{filename}' n'a pas pu être chargé (absent ou erreur d'import).", size=14),
         ], horizontal_alignment=ft.CrossAxisAlignment.CENTER),
-        alignment=ft.alignment.center, expand=True
+        alignment=ft.Alignment(0, 0), expand=True
     )
 
 def main(page: ft.Page):
@@ -66,8 +66,7 @@ def main(page: ft.Page):
     page.padding = 0
 
     # Initialisation de l'état utilisateur (Mode Eleve par défaut)
-    if page.session.get("is_professor") is None:
-        page.session.set("is_professor", False)
+    _state = {"is_professor": False}
 
     content_area = ft.Column(expand=True, scroll=ft.ScrollMode.AUTO)
 
@@ -79,7 +78,7 @@ def main(page: ft.Page):
 
     # Callbacks de navigation
     def show_aavs(e=None):
-        inst = AavsPage(content_area, is_professor=page.session.get("is_professor"))
+        inst = AavsPage(content_area, is_professor=_state["is_professor"])
         _set(inst.build(page))
 
     def show_dashboard_page(e=None):
@@ -87,15 +86,15 @@ def main(page: ft.Page):
         _set(inst.build(page))
 
     def show_sessions_page(e=None):
-        inst = SessionsPage(content_area, is_professor=page.session.get("is_professor"))
+        inst = SessionsPage(content_area, is_professor=_state["is_professor"])
         _set(inst.build(page))
 
     def show_activitePedagogique(e=None):
-        inst = ActivitepedagogiquePage(content_area, is_professor=page.session.get("is_professor"))
+        inst = ActivitepedagogiquePage(content_area, is_professor=_state["is_professor"])
         _set(inst.build(page))
 
     def show_attempts(e=None):
-        inst = AttemptsPage(content_area, is_professor=page.session.get("is_professor"))
+        inst = AttemptsPage(content_area, is_professor=_state["is_professor"])
         _set(inst.build(page))
 
     def show_comparaison(e=None):
@@ -105,14 +104,14 @@ def main(page: ft.Page):
         _set(ExerciseenginePage(content_area).build(page))
 
     def show_learners(e=None):
-        inst = LearnersPage(content_area, is_professor=page.session.get("is_professor"))
+        inst = LearnersPage(content_area, is_professor=_state["is_professor"])
         _set(inst.build(page))
 
     def show_navigation(e=None):
         _set(NavigationPage(content_area).build(page))
 
     def show_ontologies(e=None):
-        inst = OntologiesPage(content_area, is_professor=page.session.get("is_professor"))
+        inst = OntologiesPage(content_area, is_professor=_state["is_professor"])
         _set(inst.build(page))
 
     def show_promptFabricationAAV(e=None):
@@ -138,7 +137,7 @@ def main(page: ft.Page):
 
     def show_admin(e=None):
         def on_success():
-            page.session.set("is_professor", True)
+            _state["is_professor"] = True
             sidebar.update_role(True)
             show_dashboard_graph()
             page.snack_bar = ft.SnackBar(ft.Text("Mode Professeur active"), bgcolor="green")
@@ -146,14 +145,14 @@ def main(page: ft.Page):
             page.update()
 
         def on_logout():
-            page.session.set("is_professor", False)
+            _state["is_professor"] = False
             sidebar.update_role(False)
             show_about()
             page.snack_bar = ft.SnackBar(ft.Text("Mode Eleve active"), bgcolor="#1565C0")
             page.snack_bar.open = True
             page.update()
 
-        _set(AdminPage(content_area, on_success, on_logout, is_professor=page.session.get("is_professor")).build(page))
+        _set(AdminPage(content_area, on_success, on_logout, is_professor=_state["is_professor"]).build(page))
 
     def show_details(aav_id):
         if _HAS_AAV_GRAPH:
@@ -209,7 +208,7 @@ def main(page: ft.Page):
         show_dashboard_page_cb=show_dashboard_page,
         show_sessions_page_cb=show_sessions_page,
         show_admin_cb=show_admin,
-        is_professor=page.session.get("is_professor")
+        is_professor=_state["is_professor"]
     )
     sidebar_ui = sidebar.build()
 
